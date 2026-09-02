@@ -127,8 +127,15 @@ const App: React.FC = () => {
   // Rota /entrar/:roomId pré-preenche o formulário de entrada
   useEffect(() => {
     const partes = window.location.pathname.split('/').filter(Boolean);
-    if (partes[0] === 'entrar' && partes[1]) {
-      setRoomIdInput(partes[1].toUpperCase().trim());
+    const entrarIdx = partes.indexOf('entrar');
+    if (entrarIdx !== -1 && partes[entrarIdx + 1]) {
+      setRoomIdInput(partes[entrarIdx + 1].toUpperCase().trim());
+      setLocalScreen('join');
+    }
+    const params = new URLSearchParams(window.location.search);
+    const qSala = params.get('sala') || params.get('room') || params.get('r');
+    if (qSala) {
+      setRoomIdInput(qSala.toUpperCase().trim());
       setLocalScreen('join');
     }
   }, []);
