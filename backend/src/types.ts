@@ -49,6 +49,8 @@ export interface Room {
   winnerId: string | null;
   createdAt: number;
   roundNumber: number;
+  lang: 'pt' | 'en';
+  isMuted: boolean;
   answerTimer: NodeJS.Timeout | null;
   readTimer: NodeJS.Timeout | null;
   wildcardTimer: NodeJS.Timeout | null;

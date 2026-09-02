@@ -5,6 +5,8 @@ import { useSom } from './useSom';
 import { carregarConfiguracoes } from './content';
 import { translations, Language } from './i18n';
 import { themes, ThemeType } from './theme';
+import { soundEngine } from './soundEngine';
+import { AdminPanel } from './AdminPanel';
 
 function resolverServerUrl(): string {
   if (typeof window !== 'undefined') {
@@ -98,6 +100,13 @@ const App: React.FC = () => {
   const socketRef = useRef<Socket | null>(null);
   const { tocar } = useSom();
 
+  const [showAdmin, setShowAdmin] = useState<boolean>(() => {
+    return (
+      typeof window !== 'undefined' &&
+      (window.location.pathname.startsWith('/admin') || window.location.search.includes('admin'))
+    );
+  });
+
   const [booted, setBooted] = useState(false);
   const [introUrl, setIntroUrl] = useState<string | null>(null);
   const [introTipo, setIntroTipo] = useState<'video' | 'gif' | 'imagem' | null>(null);
@@ -129,6 +138,8 @@ const App: React.FC = () => {
   const [revealPayload, setRevealPayload] = useState<RevealPayload | null>(null);
   const [championPayload, setChampionPayload] = useState<ChampionPayload | null>(null);
 
+  const [isMuted, setIsMuted] = useState(false);
+
   const meuNome = roomState?.players.find((p) => p.id === myPlayerId)?.name;
   const souAnfitriao = !!myPlayerId && roomState?.hostId === myPlayerId;
   const currentHostPlayer = roomState?.players.find((p) => p.id === roomState.hostId);
@@ -144,9 +155,21 @@ const App: React.FC = () => {
   const t = translations[lang];
   const curTheme = themes[theme];
 
+  const toggleMute = () => {
+    const novo = !isMuted;
+    setIsMuted(novo);
+    soundEngine.setMuted(novo);
+    if (roomState?.roomId) {
+      socketRef.current?.emit('room:toggle_mute', { roomId: roomState.roomId });
+    }
+  };
+
   const mudarIdioma = (novo: Language) => {
     setLang(novo);
     localStorage.setItem('pqp_lang', novo);
+    if (roomState?.roomId) {
+      socketRef.current?.emit('room:set_lang', { roomId: roomState.roomId, lang: novo });
+    }
   };
 
   const mudarTema = (novo: ThemeType) => {
@@ -169,9 +192,13 @@ const App: React.FC = () => {
       .catch(() => setBooted(true));
   }, []);
 
-  // Rota /entrar/:roomId pré-preenche o formulário de entrada
+  // Rota /entrar/:roomId pré-preenche o formulário de entrada ou rota /admin
   useEffect(() => {
     const partes = window.location.pathname.split('/').filter(Boolean);
+    if (partes.includes('admin')) {
+      setShowAdmin(true);
+      return;
+    }
     const entrarIdx = partes.indexOf('entrar');
     if (entrarIdx !== -1 && partes[entrarIdx + 1]) {
       setRoomIdInput(partes[entrarIdx + 1].toUpperCase().trim());
@@ -218,11 +245,21 @@ const App: React.FC = () => {
 
     socket.on('disconnect', () => setConnected(false));
 
-    socket.on('room:state_update', (payload: RoomState) => setRoomState(payload));
+    socket.on('room:state_update', (payload: RoomState & { lang?: Language; isMuted?: boolean }) => {
+      setRoomState(payload);
+      if (payload.lang && (payload.lang === 'pt' || payload.lang === 'en')) {
+        setLang(payload.lang);
+      }
+      if (typeof payload.isMuted === 'boolean') {
+        setIsMuted(payload.isMuted);
+        soundEngine.setMuted(payload.isMuted);
+      }
+    });
 
     socket.on('coringa:rush_offer', (payload: { segundos: number; mensagem: string; subtexto: string }) => {
       setCoringaRush(payload);
       setCoringaClaimFeedback(null);
+      soundEngine.playCoringa();
       tocar('coringa_apareceu');
     });
 
@@ -260,12 +297,15 @@ const App: React.FC = () => {
     socket.on('round:reveal_result', (payload: RevealPayload) => {
       setRevealPayload(payload);
       setPickingSubmissions(null);
+      soundEngine.playRoundEnd();
       tocar('rodada_vencida');
       tocar('placar');
     });
 
     socket.on('game:champion_declared', (payload: ChampionPayload) => {
       setChampionPayload(payload);
+      const souVencedor = meuNome === payload.campeao;
+      soundEngine.playChampion(souVencedor);
       tocar('vitoria_final');
     });
 
@@ -282,7 +322,7 @@ const App: React.FC = () => {
       socket.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [meuNome]);
 
   // Contagem local da leitura em voz alta
   useEffect(() => {
@@ -442,32 +482,46 @@ const App: React.FC = () => {
     [roomState?.roomId, myPlayerId]
   );
 
-  // Barra de configuracao rapida (Design e Idioma)
+  // Barra de configuracao rapida (Design, Idioma e Mudo)
   const renderSettingsBar = () => (
     <div className="flex items-center justify-between gap-2 p-2 bg-black/40 backdrop-blur-md rounded-2xl border-2 border-white/20 mb-3 shadow-lg select-none">
-      {/* Switch de Tema Visual */}
-      <button
-        type="button"
-        onClick={() => mudarTema(theme === 'cassino' ? 'popart' : 'cassino')}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-black text-xs uppercase transition-all duration-150 active:scale-95 border-2 border-black ${
-          theme === 'popart'
-            ? 'bg-amber-300 text-black shadow-[0_3px_0_#000]'
-            : 'bg-emerald-500 text-white shadow-[0_3px_0_#000]'
-        }`}
-        title="Alternar estilo visual do jogo"
-      >
-        <span>{theme === 'cassino' ? '🎰 CASSINO' : '⚡ POP ART'}</span>
-      </button>
+      <div className="flex items-center gap-2">
+        {/* Switch de Tema Visual */}
+        <button
+          type="button"
+          onClick={() => mudarTema(theme === 'cassino' ? 'popart' : 'cassino')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs uppercase transition-all duration-150 active:scale-95 border-2 border-black ${
+            theme === 'popart'
+              ? 'bg-amber-300 text-black shadow-[0_3px_0_#000]'
+              : 'bg-emerald-500 text-white shadow-[0_3px_0_#000]'
+          }`}
+          title="Alternar estilo visual do jogo"
+        >
+          <span>{theme === 'cassino' ? '🎰 CASSINO' : '⚡ POP ART'}</span>
+        </button>
 
-      {/* Switch de Idioma */}
+        {/* Switch de Idioma */}
+        <button
+          type="button"
+          onClick={() => mudarIdioma(lang === 'pt' ? 'en' : 'pt')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs uppercase bg-white text-black border-2 border-black shadow-[0_3px_0_#000] transition-all duration-150 active:scale-95"
+          title="Mudar idioma / Switch language"
+        >
+          <span className="text-base">{lang === 'pt' ? '🇧🇷' : '🇺🇸'}</span>
+          <span>{lang === 'pt' ? 'PT' : 'EN'}</span>
+        </button>
+      </div>
+
+      {/* Botao de Mudo / Som */}
       <button
         type="button"
-        onClick={() => mudarIdioma(lang === 'pt' ? 'en' : 'pt')}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-xl font-black text-xs uppercase bg-white text-black border-2 border-black shadow-[0_3px_0_#000] transition-all duration-150 active:scale-95"
-        title="Mudar idioma / Switch language"
+        onClick={toggleMute}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs uppercase border-2 border-black shadow-[0_3px_0_#000] active:scale-95 transition-all ${
+          isMuted ? 'bg-red-500 text-white' : 'bg-amber-400 text-black'
+        }`}
+        title={isMuted ? 'Desmutar som do jogo' : 'Mutar som do jogo'}
       >
-        <span className="text-base">{lang === 'pt' ? '🇧🇷' : '🇺🇸'}</span>
-        <span>{lang === 'pt' ? 'PT-BR' : 'EN-US'}</span>
+        <span>{isMuted ? '🔇 MUDO' : '🔊 SOM'}</span>
       </button>
     </div>
   );
@@ -499,6 +553,18 @@ const App: React.FC = () => {
   };
 
   // ---------- Telas ----------
+
+  if (showAdmin) {
+    return (
+      <AdminPanel
+        serverUrl={SERVER_URL}
+        onBackToGame={() => {
+          setShowAdmin(false);
+          window.history.pushState({}, '', '/');
+        }}
+      />
+    );
+  }
 
   if (!booted) {
     return (
@@ -549,8 +615,19 @@ const App: React.FC = () => {
               <Botao theme={theme} onClick={() => setLocalScreen('create')}>{t.hostRoom}</Botao>
               <Botao theme={theme} variant="secondary" onClick={() => setLocalScreen('join')}>{t.joinRoom}</Botao>
             </div>
-            <div className="bg-black/30 border-2 border-white/20 rounded-2xl px-4 py-2 text-[11px] font-bold text-white/90 uppercase tracking-wider">
-              🎮 {t.gameTagline}
+            <div className="flex items-center justify-between gap-2 w-full max-w-sm pt-2">
+              <div className="bg-black/30 border border-white/20 rounded-xl px-3 py-1.5 text-[10px] font-bold text-white/90 uppercase tracking-wider">
+                🎮 {t.gameTagline}
+              </div>
+              <button
+                onClick={() => {
+                  setShowAdmin(true);
+                  window.history.pushState({}, '', '/admin');
+                }}
+                className="bg-black/40 hover:bg-black/60 border border-white/30 text-amber-300 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl transition-all"
+              >
+                🔐 Painel Admin
+              </button>
             </div>
           </div>
         )}

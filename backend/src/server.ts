@@ -54,11 +54,15 @@ export function getLocalIp(): string {
   return 'localhost';
 }
 
+import { adminRouter } from './routes/adminRoutes.js';
+
 const PORT = Number(process.env.PORT) || 3001;
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || '';
 
 const app = express();
 app.use(cors({ origin: '*' }));
+app.use(express.json());
+app.use('/api/admin', adminRouter);
 app.get('/health', (_req, res) => res.json({ ok: true, timestamp: Date.now() }));
 
 const httpServer = createServer(app);
@@ -109,6 +113,8 @@ function broadcastState(room: Room) {
       yourHand: p.hand,
       isWildcardHolder: p.id === room.wildcardHolderId,
       winningScore: WINNING_SCORE,
+      lang: room.lang,
+      isMuted: room.isMuted,
     });
   }
 }
@@ -121,7 +127,7 @@ async function reporMao(room: Room, jogador: Player, quantidadeAlvo: number) {
   if (jogador.hand.length >= quantidadeAlvo) return;
   const faltam = quantidadeAlvo - jogador.hand.length;
   const excluir = room.players.flatMap((p) => p.hand);
-  const novas = await drawRespostas(faltam, excluir);
+  const novas = await drawRespostas(faltam, excluir, room.lang);
   jogador.hand.push(...novas);
 }
 
@@ -397,7 +403,7 @@ function escolherVencedor(room: Room, submissionId: string) {
 }
 
 async function prepararPerguntaDaRodada(room: Room) {
-  const p = await drawRandomPergunta(room.usedPromptTexts);
+  const p = await drawRandomPergunta(room.usedPromptTexts, room.lang);
   room.usedPromptTexts.push(p.texto);
   room.currentPrompt = { text: p.texto, slots: p.espacos };
   room.phase = 'PROMPT_SELECTION';
@@ -430,9 +436,9 @@ async function proximaRodada(room: Room) {
 const tunnelPromise = startTunnel(5175).catch(() => null);
 
 io.on('connection', (socket) => {
-  socket.on('room:create', async ({ hostName }: { hostName: string }, ack) => {
+  socket.on('room:create', async ({ hostName, lang = 'pt' }: { hostName: string; lang?: 'pt' | 'en' }, ack) => {
     if (!hostName?.trim()) return ack?.({ erro: 'Nome obrigatório.' });
-    const { room, hostPlayerId } = criarSala(hostName);
+    const { room, hostPlayerId } = criarSala(hostName, lang === 'en' ? 'en' : 'pt');
     const host = room.players.find((p) => p.id === hostPlayerId)!;
     host.socketId = socket.id;
     socket.join(room.id);
@@ -476,6 +482,20 @@ io.on('connection', (socket) => {
     broadcastState(room);
   });
 
+  socket.on('room:toggle_mute', ({ roomId }: { roomId: string }) => {
+    const room = buscarSala(roomId);
+    if (!room) return;
+    room.isMuted = !room.isMuted;
+    broadcastState(room);
+  });
+
+  socket.on('room:set_lang', ({ roomId, lang }: { roomId: string; lang: 'pt' | 'en' }) => {
+    const room = buscarSala(roomId);
+    if (!room || (lang !== 'pt' && lang !== 'en')) return;
+    room.lang = lang;
+    broadcastState(room);
+  });
+
   socket.on('game:start', async ({ roomId, playerId }: { roomId: string; playerId: string }, ack) => {
     const room = buscarSala(roomId);
     if (!room) return ack?.({ erro: 'Sala não encontrada.' });
@@ -498,7 +518,7 @@ io.on('connection', (socket) => {
     const room = buscarSala(roomId);
     if (!room) return ack?.({ erro: 'Sala não encontrada.' });
     if (!ehHostValido(room, playerId, socket.id)) return ack?.({ erro: 'Só o anfitrião pode sortear a pergunta.' });
-    const pergunta = await drawRandomPergunta(room.usedPromptTexts);
+    const pergunta = await drawRandomPergunta(room.usedPromptTexts, room.lang);
     room.currentPrompt = { text: pergunta.texto, slots: pergunta.espacos };
     room.usedPromptTexts.push(pergunta.texto);
     ack?.({ ok: true, texto: pergunta.texto });

@@ -14,7 +14,7 @@ function gerarCodigoSala(): string {
   return tentativa;
 }
 
-export function criarSala(hostName: string): { room: Room; hostPlayerId: string } {
+export function criarSala(hostName: string, lang: 'pt' | 'en' = 'pt'): { room: Room; hostPlayerId: string } {
   const id = gerarCodigoSala();
   const hostPlayerId = randomUUID();
 
@@ -48,6 +48,8 @@ export function criarSala(hostName: string): { room: Room; hostPlayerId: string 
     winnerId: null,
     createdAt: Date.now(),
     roundNumber: 0,
+    lang: lang === 'en' ? 'en' : 'pt',
+    isMuted: false,
     answerTimer: null,
     readTimer: null,
     wildcardTimer: null,
