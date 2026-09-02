@@ -4,13 +4,21 @@ import type { RoomState } from './types';
 import { useSom } from './useSom';
 import { carregarConfiguracoes } from './content';
 
-const SERVER_URL =
-  (import.meta.env.VITE_SERVER_URL as string) ||
-  (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
-    ? 'https://pqpnew.onrender.com'
-    : typeof window !== 'undefined'
-    ? window.location.origin
-    : '');
+function resolverServerUrl(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host.includes('vercel.app') || host.includes('pqp')) {
+      return 'https://pqpnew.onrender.com';
+    }
+  }
+  const envUrl = (import.meta.env.VITE_SERVER_URL as string) || '';
+  if (envUrl && !envUrl.includes('pqp-backend')) {
+    return envUrl;
+  }
+  return typeof window !== 'undefined' ? window.location.origin : '';
+}
+
+const SERVER_URL = resolverServerUrl();
 const SESSION_KEY = 'pqp_online_session';
 
 interface RevealPayload {

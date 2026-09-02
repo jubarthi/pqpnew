@@ -58,11 +58,14 @@ const PORT = Number(process.env.PORT) || 3001;
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || '';
 
 const app = express();
-app.use(cors());
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.use(cors({ origin: '*' }));
+app.get('/health', (_req, res) => res.json({ ok: true, timestamp: Date.now() }));
 
 const httpServer = createServer(app);
-const io = new Server(httpServer, { cors: { origin: '*' } });
+const io = new Server(httpServer, {
+  cors: { origin: '*', methods: ['GET', 'POST'] },
+  transports: ['polling', 'websocket'],
+});
 
 const MENSAGENS_PERDEDOR = [
   '💩 SEU LIXO! PERDEU!',
