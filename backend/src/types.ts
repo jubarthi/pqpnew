@@ -48,6 +48,7 @@ export interface Room {
   wildcardPendingId: string | null;
   winnerId: string | null;
   createdAt: number;
+  roundNumber: number;
   answerTimer: NodeJS.Timeout | null;
   readTimer: NodeJS.Timeout | null;
   wildcardTimer: NodeJS.Timeout | null;

@@ -127,44 +127,38 @@ async function reporMao(room: Room, jogador: Player, quantidadeAlvo: number) {
 
 async function iniciarOfertaDeCoringa(room: Room) {
   const cfg = await getConfiguracoes();
-  if (!cfg.coringa_ativo) {
-    room.wildcardPendingId = null;
+  room.wildcardPendingId = null;
+  room.wildcardHolderId = null;
+
+  // O Coringa não aparece na 1ª rodada. A partir da 2ª, surge de surpresa (50% de chance)
+  const deveSurgir = cfg.coringa_ativo && room.roundNumber > 1 && Math.random() <= 0.50;
+
+  if (!deveSurgir) {
     return iniciarRespostas(room);
   }
 
-  const candidatos = elegiveisParaResponder(room).filter((p) => !room.wildcardOfferedTo.includes(p.id));
+  const candidatos = elegiveisParaResponder(room);
   if (candidatos.length === 0) {
-    room.wildcardPendingId = null;
     return iniciarRespostas(room);
   }
 
-  const escolhido = candidatos[Math.floor(Math.random() * candidatos.length)];
-  room.wildcardOfferedTo.push(escolhido.id);
-  room.wildcardPendingId = escolhido.id;
   room.phase = 'WILDCARD_OFFER';
+  const tempoSegundos = cfg.coringa_segundos || 5;
 
-  emitToPlayer(room, escolhido.id, 'coringa:offer', { segundos: cfg.coringa_segundos });
+  // Notifica todos os jogadores elegíveis ao mesmo tempo na tela
+  io.to(room.id).emit('coringa:rush_offer', {
+    segundos: tempoSegundos,
+    mensagem: 'OPORTUNIDADE CORINGA: VOCÊ É O PALHAÇO DA VEZ?',
+    subtexto: 'O primeiro a clicar ganha o direito exclusivo de escrever a resposta que quiser!',
+  });
   broadcastState(room);
-
-  // Se o coringa for oferecido a um robô, ele aceita após 1.5s
-  if (escolhido.isBot) {
-    setTimeout(() => {
-      if (room.wildcardPendingId === escolhido.id && room.phase === 'WILDCARD_OFFER') {
-        room.wildcardHolderId = escolhido.id;
-        room.wildcardPendingId = null;
-        if (room.wildcardTimer) clearTimeout(room.wildcardTimer);
-        iniciarRespostas(room);
-      }
-    }, 1500);
-  }
 
   if (room.wildcardTimer) clearTimeout(room.wildcardTimer);
   room.wildcardTimer = setTimeout(() => {
-    if (room.wildcardPendingId === escolhido.id) {
-      room.wildcardPendingId = null;
-      iniciarOfertaDeCoringa(room);
+    if (room.phase === 'WILDCARD_OFFER') {
+      iniciarRespostas(room);
     }
-  }, cfg.coringa_segundos * 1000);
+  }, tempoSegundos * 1000);
 }
 
 function processarBotsRespostas(room: Room) {
@@ -511,19 +505,30 @@ io.on('connection', (socket) => {
     broadcastState(room);
   });
 
-  socket.on('coringa:responder', ({ roomId, playerId, aceitar }: { roomId: string; playerId: string; aceitar: boolean }, ack) => {
+  socket.on('coringa:claim', ({ roomId, playerId }: { roomId: string; playerId: string }, ack) => {
     const room = buscarSala(roomId);
-    if (!room || room.wildcardPendingId !== playerId) return ack?.({ erro: 'Oferta expirada.' });
+    if (!room || room.phase !== 'WILDCARD_OFFER') return ack?.({ erro: 'Oferta expirada ou indisponível.' });
+    if (room.wildcardHolderId) return ack?.({ erro: 'Outro jogador foi mais rápido!' });
+
+    const jogador = room.players.find((p) => p.id === playerId);
+    if (!jogador || jogador.isHost) return ack?.({ erro: 'Jogador inválido.' });
+
+    room.wildcardHolderId = jogador.id;
     if (room.wildcardTimer) clearTimeout(room.wildcardTimer);
-    room.wildcardPendingId = null;
-    if (aceitar) {
-      room.wildcardHolderId = playerId;
-      ack?.({ ok: true });
-      iniciarRespostas(room);
-    } else {
-      ack?.({ ok: true });
-      iniciarOfertaDeCoringa(room);
-    }
+    room.wildcardTimer = null;
+
+    ack?.({ ok: true, ganhou: true });
+    io.to(room.id).emit('coringa:claimed', {
+      winnerId: jogador.id,
+      winnerName: jogador.name,
+      mensagem: `🤡 ${jogador.name} FOI MAIS RÁPIDO E PEGOU O CORINGA!`,
+    });
+
+    setTimeout(() => {
+      if (room.phase === 'WILDCARD_OFFER') {
+        iniciarRespostas(room);
+      }
+    }, 1200);
   });
 
   socket.on('answer:submit', ({ roomId, playerId, handIndexes, textoLivre }: { roomId: string; playerId: string; handIndexes?: number[]; textoLivre?: string[] }, ack) => {

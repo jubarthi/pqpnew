@@ -47,6 +47,7 @@ export function criarSala(hostName: string): { room: Room; hostPlayerId: string 
     wildcardPendingId: null,
     winnerId: null,
     createdAt: Date.now(),
+    roundNumber: 0,
     answerTimer: null,
     readTimer: null,
     wildcardTimer: null,

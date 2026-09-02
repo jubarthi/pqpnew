@@ -89,7 +89,8 @@ const App: React.FC = () => {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [joinUrl, setJoinUrl] = useState<string | null>(null);
 
-  const [coringaSegundos, setCoringaSegundos] = useState<number | null>(null);
+  const [coringaRush, setCoringaRush] = useState<{ segundos: number; mensagem: string; subtexto: string } | null>(null);
+  const [coringaClaimFeedback, setCoringaClaimFeedback] = useState<string | null>(null);
   const [handSelection, setHandSelection] = useState<number[]>([]);
   const [freeTexts, setFreeTexts] = useState<string[]>(['', '']);
   const [aguardandoEnvio, setAguardandoEnvio] = useState(false);
@@ -175,9 +176,22 @@ const App: React.FC = () => {
 
     socket.on('room:state_update', (payload: RoomState) => setRoomState(payload));
 
-    socket.on('coringa:offer', ({ segundos }: { segundos: number }) => {
-      setCoringaSegundos(segundos);
+    socket.on('coringa:rush_offer', (payload: { segundos: number; mensagem: string; subtexto: string }) => {
+      setCoringaRush(payload);
+      setCoringaClaimFeedback(null);
       tocar('coringa_apareceu');
+    });
+
+    socket.on('coringa:claimed', (payload: { winnerId: string; winnerName: string; mensagem: string }) => {
+      if (payload.winnerId === myPlayerId) {
+        setCoringaClaimFeedback('👑 VOCÊ FOI O MAIS RÁPIDO E PEGOU O CORINGA!');
+      } else {
+        setCoringaClaimFeedback(`⚡ ${payload.winnerName} foi mais rápido e pegou o Coringa!`);
+      }
+      setTimeout(() => {
+        setCoringaRush(null);
+        setCoringaClaimFeedback(null);
+      }, 1200);
     });
 
     socket.on('round:reading_card', (payload: { texts: string[]; seconds: number; total: number; index: number }) => {
@@ -238,12 +252,14 @@ const App: React.FC = () => {
     return () => clearTimeout(t);
   }, [readingCard, readingSecondsLeft, askingVote]);
 
-  // Contagem local da oferta de coringa
+  // Contagem local da oferta de coringa relampago
   useEffect(() => {
-    if (coringaSegundos === null || coringaSegundos <= 0) return;
-    const t = setTimeout(() => setCoringaSegundos((s) => (s !== null ? s - 1 : null)), 1000);
+    if (!coringaRush || coringaRush.segundos <= 0) return;
+    const t = setTimeout(() => {
+      setCoringaRush((prev) => (prev ? { ...prev, segundos: prev.segundos - 1 } : null));
+    }, 1000);
     return () => clearTimeout(t);
-  }, [coringaSegundos]);
+  }, [coringaRush]);
 
   // Avança a rodada automaticamente
   useEffect(() => {
@@ -271,66 +287,55 @@ const App: React.FC = () => {
     setErro('');
     socketRef.current?.emit(
       'room:create',
-      { hostName: hostNameInput.trim(), clientOrigin: window.location.origin },
+      { hostName: hostNameInput.trim() },
       (res: { roomId?: string; hostPlayerId?: string; joinUrl?: string; qrCodeDataUrl?: string; erro?: string }) => {
         if (res.erro) return setErro(res.erro);
-        setMyPlayerId(res.hostPlayerId!);
-        setQrCodeDataUrl(res.qrCodeDataUrl || null);
-        setJoinUrl(res.joinUrl || null);
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify({ roomId: res.roomId, playerId: res.hostPlayerId }));
-        tocar('sala_aberta');
+        if (res.roomId && res.hostPlayerId) {
+          setMyPlayerId(res.hostPlayerId);
+          setJoinUrl(res.joinUrl || null);
+          setQrCodeDataUrl(res.qrCodeDataUrl || null);
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify({ roomId: res.roomId, playerId: res.hostPlayerId }));
+          tocar('sala_aberta');
+        }
       }
     );
   }, [hostNameInput, tocar]);
 
   const entrarSala = useCallback(() => {
-    const nome = playerNameInput.trim();
-    const codigo = roomIdInput.trim().toUpperCase();
-    if (!nome || !codigo) return;
+    if (!playerNameInput.trim() || !roomIdInput.trim()) return;
     setErro('');
     setEntrando(true);
 
-    const socket = socketRef.current;
-    if (!socket) {
-      setEntrando(false);
-      setErro('Sem conexão com o servidor. Recarregue a página.');
-      return;
-    }
-
     const doEmit = () => {
-      const timer = setTimeout(() => {
-        setEntrando(false);
-        setErro('Tempo esgotado. Verifique se o código da sala está correto e tente novamente.');
-      }, 10000);
-
-      socket.emit(
+      socketRef.current?.emit(
         'room:join',
-        { roomId: codigo, playerName: nome },
+        { roomId: roomIdInput.trim().toUpperCase(), playerName: playerNameInput.trim() },
         (res: { playerId?: string; roomId?: string; erro?: string }) => {
-          clearTimeout(timer);
           setEntrando(false);
-          if (res?.erro) return setErro(res.erro);
-          if (res?.playerId && res?.roomId) {
+          if (res.erro) return setErro(res.erro);
+          if (res.playerId && res.roomId) {
             setMyPlayerId(res.playerId);
             sessionStorage.setItem(SESSION_KEY, JSON.stringify({ roomId: res.roomId, playerId: res.playerId }));
+            tocar('jogador_entrou');
           }
         }
       );
     };
 
-    if (!socket.connected) {
-      socket.connect();
-      socket.once('connect', doEmit);
+    if (!socketRef.current?.connected) {
+      socketRef.current?.connect();
       setTimeout(() => {
-        if (!socket.connected) {
+        if (socketRef.current?.connected) {
+          doEmit();
+        } else {
           setEntrando(false);
-          setErro('Não foi possível conectar ao servidor do jogo. Verifique se o celular está no mesmo Wi-Fi e recarregue a página.');
+          setErro('Não foi possível conectar ao servidor do jogo. Verifique sua conexão e tente novamente.');
         }
       }, 8000);
     } else {
       doEmit();
     }
-  }, [playerNameInput, roomIdInput]);
+  }, [playerNameInput, roomIdInput, tocar]);
 
   const iniciarPartida = useCallback(() => {
     socketRef.current?.emit('game:start', { roomId: roomState?.roomId, playerId: myPlayerId }, () => tocar('inicio_jogo'));
@@ -347,14 +352,15 @@ const App: React.FC = () => {
     socketRef.current?.emit('prompt:draw_random', { roomId: roomState?.roomId, playerId: myPlayerId });
   }, [roomState?.roomId, myPlayerId]);
 
-  const responderCoringa = useCallback(
-    (aceitar: boolean) => {
-      socketRef.current?.emit('coringa:responder', { roomId: roomState?.roomId, playerId: myPlayerId, aceitar });
-      setCoringaSegundos(null);
-      tocar(aceitar ? 'coringa_aceito' : 'coringa_recusado');
-    },
-    [roomState?.roomId, myPlayerId, tocar]
-  );
+  const pegarCoringa = useCallback(() => {
+    socketRef.current?.emit('coringa:claim', { roomId: roomState?.roomId, playerId: myPlayerId }, (res: { ganhou?: boolean; erro?: string }) => {
+      if (res?.ganhou) {
+        tocar('coringa_aceito');
+      } else if (res?.erro) {
+        tocar('coringa_recusado');
+      }
+    });
+  }, [roomState?.roomId, myPlayerId, tocar]);
 
   const enviarResposta = useCallback(() => {
     if (!roomState?.currentPrompt) return;
@@ -599,31 +605,46 @@ const App: React.FC = () => {
     );
   }
 
-  // Coringa oferecido pra mim especificamente
-  if (coringaSegundos !== null) {
+  // Oportunidade Coringa Relâmpago (quem clicar primeiro ganha!)
+  if (roomState.phase === 'WILDCARD_OFFER' && coringaRush && !souAnfitriao) {
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col items-center justify-center overflow-hidden px-6 space-y-8 text-center">
+      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col items-center justify-center overflow-hidden px-6 space-y-6 text-center animate-urgent">
         {renderTopBar()}
         <div className="space-y-2">
-          <span className="bg-amber-400 text-black border-2 border-black font-black text-xs px-3 py-1 rounded-full uppercase tracking-widest">
-            OFERTA SECRETA
+          <span className="bg-amber-400 text-black border-2 border-black font-black text-xs px-3 py-1 rounded-full uppercase tracking-widest animate-bounce">
+            ⚡ RELÂMPAGO
           </span>
-          <p className="text-5xl font-black text-white text-comic uppercase leading-tight">
-            VOCÊ É O<br />PALHAÇO DA VEZ 🃏
+          <p className="text-4xl font-black text-white text-comic uppercase leading-tight">
+            VOCÊ É O PALHAÇO DA VEZ? 🃏
+          </p>
+          <p className="text-amber-300 font-bold text-xs uppercase tracking-wider">
+            O primeiro a clicar ganha o direito exclusivo de escrever a resposta que quiser!
           </p>
         </div>
-        <div className="bg-white border-4 border-black p-6 rounded-3xl card-shadow-lg max-w-sm text-black font-bold text-base leading-relaxed">
-          Só você pode escrever a resposta livre da sua cabeça nessa rodada — e ninguém na mesa vai saber que foi você!
-        </div>
-        <div className="bg-black/60 border-4 border-white px-8 py-3 rounded-3xl">
-          <div className={`text-6xl font-black text-comic ${coringaSegundos <= 3 ? 'text-red-500 animate-urgent' : 'text-amber-300'}`}>
-            {coringaSegundos}s
+
+        <div className="bg-black/60 border-4 border-white px-8 py-2 rounded-3xl">
+          <div className={`text-5xl font-black text-comic ${coringaRush.segundos <= 2 ? 'text-red-500 animate-urgent' : 'text-amber-300'}`}>
+            {coringaRush.segundos}s
           </div>
         </div>
-        <div className="w-full max-w-sm grid grid-cols-2 gap-4">
-          <Botao variant="danger" onClick={() => responderCoringa(false)}>RECUSAR</Botao>
-          <Botao variant="success" onClick={() => responderCoringa(true)}>ACEITAR</Botao>
-        </div>
+
+        {coringaClaimFeedback ? (
+          <div className="bg-white border-4 border-black p-6 rounded-3xl card-shadow-lg max-w-sm text-black font-black text-xl animate-bounce">
+            {coringaClaimFeedback}
+          </div>
+        ) : (
+          <div className="w-full max-w-sm space-y-4">
+            <button
+              onClick={pegarCoringa}
+              className="btn-3d w-full py-6 px-4 rounded-3xl font-black text-2xl uppercase tracking-wider bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 border-4 border-black text-black shadow-2xl animate-pulse"
+            >
+              🤡 EU QUERO SER O CORINGA!
+            </button>
+            <p className="text-white/60 font-bold uppercase text-xs tracking-widest">
+              Corre que qualquer um na mesa pode pegar!
+            </p>
+          </div>
+        )}
       </div>
     );
   }
