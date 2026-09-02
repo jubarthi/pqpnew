@@ -60,7 +60,9 @@ export function criarSala(hostName: string, lang: 'pt' | 'en' = 'pt'): { room: R
 }
 
 export function buscarSala(roomId: string): Room | undefined {
-  return rooms.get(roomId.toUpperCase());
+  if (!roomId || typeof roomId !== 'string') return undefined;
+  const cleanId = roomId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return rooms.get(cleanId);
 }
 
 export function entrarNaSala(roomId: string, playerName: string): { room: Room; player: Player } | { erro: string } {
@@ -93,10 +95,30 @@ export function podeComecar(room: Room): boolean {
   return room.players.length >= MIN_PLAYERS;
 }
 
+const deletionTimeouts = new Map<string, NodeJS.Timeout>();
+
 export function removerSalaVazia(roomId: string) {
-  const room = rooms.get(roomId);
-  if (room && room.players.every((p) => !p.connected)) {
-    rooms.delete(roomId);
+  const room = buscarSala(roomId);
+  if (!room) return;
+
+  // Se todos os jogadores desconectaram, aguarda 15 minutos de tolerancia antes de deletar
+  if (room.players.every((p) => !p.connected)) {
+    if (!deletionTimeouts.has(roomId)) {
+      const t = setTimeout(() => {
+        const r = buscarSala(roomId);
+        if (r && r.players.every((p) => !p.connected)) {
+          rooms.delete(roomId);
+        }
+        deletionTimeouts.delete(roomId);
+      }, 1000 * 60 * 15);
+      deletionTimeouts.set(roomId, t);
+    }
+  } else {
+    const existing = deletionTimeouts.get(roomId);
+    if (existing) {
+      clearTimeout(existing);
+      deletionTimeouts.delete(roomId);
+    }
   }
 }
 

@@ -201,13 +201,15 @@ const App: React.FC = () => {
     }
     const entrarIdx = partes.indexOf('entrar');
     if (entrarIdx !== -1 && partes[entrarIdx + 1]) {
-      setRoomIdInput(partes[entrarIdx + 1].toUpperCase().trim());
+      const code = partes[entrarIdx + 1].toUpperCase().replace(/[^A-Z0-9]/g, '');
+      setRoomIdInput(code);
       setLocalScreen('join');
     }
     const params = new URLSearchParams(window.location.search);
     const qSala = params.get('sala') || params.get('room') || params.get('r');
     if (qSala) {
-      setRoomIdInput(qSala.toUpperCase().trim());
+      const code = qSala.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      setRoomIdInput(code);
       setLocalScreen('join');
     }
   }, []);
