@@ -519,9 +519,7 @@ io.on('connection', (socket) => {
 
     ack?.({ ok: true, ganhou: true });
     io.to(room.id).emit('coringa:claimed', {
-      winnerId: jogador.id,
-      winnerName: jogador.name,
-      mensagem: `🤡 ${jogador.name} FOI MAIS RÁPIDO E PEGOU O CORINGA!`,
+      mensagem: `👀 Alguém na mesa pegou o Coringa em segredo!`,
     });
 
     setTimeout(() => {

@@ -182,12 +182,8 @@ const App: React.FC = () => {
       tocar('coringa_apareceu');
     });
 
-    socket.on('coringa:claimed', (payload: { winnerId: string; winnerName: string; mensagem: string }) => {
-      if (payload.winnerId === myPlayerId) {
-        setCoringaClaimFeedback('👑 VOCÊ FOI O MAIS RÁPIDO E PEGOU O CORINGA!');
-      } else {
-        setCoringaClaimFeedback(`⚡ ${payload.winnerName} foi mais rápido e pegou o Coringa!`);
-      }
+    socket.on('coringa:claimed', (payload: { mensagem?: string }) => {
+      setCoringaClaimFeedback((prev) => prev || payload?.mensagem || '👀 Alguém na mesa pegou o Coringa em segredo!');
       setTimeout(() => {
         setCoringaRush(null);
         setCoringaClaimFeedback(null);
@@ -355,6 +351,7 @@ const App: React.FC = () => {
   const pegarCoringa = useCallback(() => {
     socketRef.current?.emit('coringa:claim', { roomId: roomState?.roomId, playerId: myPlayerId }, (res: { ganhou?: boolean; erro?: string }) => {
       if (res?.ganhou) {
+        setCoringaClaimFeedback('👑 VOCÊ PEGOU O CORINGA! (É segredo)');
         tocar('coringa_aceito');
       } else if (res?.erro) {
         tocar('coringa_recusado');
