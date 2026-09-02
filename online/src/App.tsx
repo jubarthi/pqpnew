@@ -3,6 +3,8 @@ import { io, Socket } from 'socket.io-client';
 import type { RoomState } from './types';
 import { useSom } from './useSom';
 import { carregarConfiguracoes } from './content';
+import { translations, Language } from './i18n';
+import { themes, ThemeType } from './theme';
 
 function resolverServerUrl(): string {
   if (typeof window !== 'undefined') {
@@ -51,18 +53,27 @@ export const Botao: React.FC<{
   variant?: 'primary' | 'secondary' | 'danger' | 'success';
   disabled?: boolean;
   className?: string;
-}> = ({ children, onClick, variant = 'primary', disabled, className = '' }) => {
+  theme?: ThemeType;
+}> = ({ children, onClick, variant = 'primary', disabled, className = '', theme = 'cassino' }) => {
+  const isPop = theme === 'popart';
   const cores = {
-    primary: 'bg-gradient-to-b from-amber-300 to-amber-400 border-2 border-black text-black',
-    secondary: 'bg-gradient-to-b from-blue-500 to-blue-600 border-2 border-black text-white',
-    danger: 'bg-gradient-to-b from-rose-500 to-red-600 border-2 border-black text-white',
-    success: 'bg-gradient-to-b from-emerald-400 to-emerald-500 border-2 border-black text-black',
+    primary: isPop
+      ? 'bg-gradient-to-b from-blue-500 to-blue-600 text-white border-4 border-black shadow-[0_6px_0_#000]'
+      : 'bg-gradient-to-b from-amber-300 to-amber-400 text-black border-4 border-black shadow-[0_6px_0_#000]',
+    secondary: isPop
+      ? 'bg-white text-black border-4 border-black shadow-[0_6px_0_#000]'
+      : 'bg-gradient-to-b from-blue-500 to-blue-600 text-white border-4 border-black shadow-[0_6px_0_#000]',
+    danger: 'bg-gradient-to-b from-rose-500 to-red-600 text-white border-4 border-black shadow-[0_6px_0_#000]',
+    success: isPop
+      ? 'bg-gradient-to-b from-emerald-300 to-emerald-400 text-black border-4 border-black shadow-[0_6px_0_#000]'
+      : 'bg-gradient-to-b from-emerald-400 to-emerald-500 text-black border-4 border-black shadow-[0_6px_0_#000]',
   }[variant];
+  const rounded = isPop ? 'rounded-full' : 'rounded-2xl';
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`btn-3d w-full py-4 px-6 rounded-2xl font-black text-xl uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed select-none ${cores} ${className}`}
+      className={`btn-3d w-full py-4 px-6 ${rounded} font-black text-xl uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed select-none ${cores} ${className}`}
     >
       {children}
     </button>
@@ -109,6 +120,25 @@ const App: React.FC = () => {
   const currentHostPlayer = roomState?.players.find((p) => p.id === roomState.hostId);
 
   const [entrando, setEntrando] = useState(false);
+  const [lang, setLang] = useState<Language>(() => {
+    return (localStorage.getItem('pqp_lang') as Language) || 'pt';
+  });
+  const [theme, setTheme] = useState<ThemeType>(() => {
+    return (localStorage.getItem('pqp_theme') as ThemeType) || 'cassino';
+  });
+
+  const t = translations[lang];
+  const curTheme = themes[theme];
+
+  const mudarIdioma = (novo: Language) => {
+    setLang(novo);
+    localStorage.setItem('pqp_lang', novo);
+  };
+
+  const mudarTema = (novo: ThemeType) => {
+    setTheme(novo);
+    localStorage.setItem('pqp_theme', novo);
+  };
 
   // Intro (logo de abertura, se configurado)
   useEffect(() => {
@@ -398,25 +428,58 @@ const App: React.FC = () => {
     [roomState?.roomId, myPlayerId]
   );
 
+  // Barra de configuracao rapida (Design e Idioma)
+  const renderSettingsBar = () => (
+    <div className="flex items-center justify-between gap-2 p-2 bg-black/40 backdrop-blur-md rounded-2xl border-2 border-white/20 mb-3 shadow-lg select-none">
+      {/* Switch de Tema Visual */}
+      <button
+        type="button"
+        onClick={() => mudarTema(theme === 'cassino' ? 'popart' : 'cassino')}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-black text-xs uppercase transition-all duration-150 active:scale-95 border-2 border-black ${
+          theme === 'popart'
+            ? 'bg-amber-300 text-black shadow-[0_3px_0_#000]'
+            : 'bg-emerald-500 text-white shadow-[0_3px_0_#000]'
+        }`}
+        title="Alternar estilo visual do jogo"
+      >
+        <span>{theme === 'cassino' ? '🎰 CASSINO' : '⚡ POP ART'}</span>
+      </button>
+
+      {/* Switch de Idioma */}
+      <button
+        type="button"
+        onClick={() => mudarIdioma(lang === 'pt' ? 'en' : 'pt')}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-xl font-black text-xs uppercase bg-white text-black border-2 border-black shadow-[0_3px_0_#000] transition-all duration-150 active:scale-95"
+        title="Mudar idioma / Switch language"
+      >
+        <span className="text-base">{lang === 'pt' ? '🇧🇷' : '🇺🇸'}</span>
+        <span>{lang === 'pt' ? 'PT-BR' : 'EN-US'}</span>
+      </button>
+    </div>
+  );
+
   // Barra de status superior padrão no jogo
   const renderTopBar = () => {
     if (!roomState) return null;
     return (
-      <header className="flex items-center justify-between gap-2 px-1 pb-4 text-xs font-black select-none">
-        <div className="flex items-center gap-2">
-          <span className="bg-black/40 backdrop-blur-sm border-2 border-white/30 px-3 py-1.5 rounded-xl text-white tracking-widest uppercase">
-            SALA: <strong className="text-amber-300">{roomState.roomId}</strong>
-          </span>
-          {currentHostPlayer && (
-            <span className="bg-amber-400 text-black border-2 border-black px-2.5 py-1.5 rounded-xl uppercase flex items-center gap-1">
-              👑 {currentHostPlayer.name}
+      <header className="flex flex-col gap-2 pb-2 select-none">
+        <div className="flex items-center justify-between gap-2 text-xs font-black">
+          <div className="flex items-center gap-2">
+            <span className="bg-black/50 backdrop-blur-sm border-2 border-white/30 px-3 py-1.5 rounded-xl text-white tracking-widest uppercase">
+              {lang === 'pt' ? 'SALA' : 'ROOM'}: <strong className="text-amber-300">{roomState.roomId}</strong>
             </span>
-          )}
+            {currentHostPlayer && (
+              <span className="bg-amber-400 text-black border-2 border-black px-2.5 py-1.5 rounded-xl uppercase flex items-center gap-1">
+                👑 {currentHostPlayer.name}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm border-2 border-white/30 px-2.5 py-1.5 rounded-xl text-[11px] text-white/90 uppercase">
+            <span className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+            {roomState.players.length} {roomState.players.length === 1 ? (lang === 'pt' ? 'jogador' : 'player') : (lang === 'pt' ? 'jogadores' : 'players')}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-sm border-2 border-white/30 px-2.5 py-1.5 rounded-xl text-[11px] text-white/90 uppercase">
-          <span className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
-          {roomState.players.length} {roomState.players.length === 1 ? 'jogador' : 'jogadores'}
-        </div>
+        {renderSettingsBar()}
       </header>
     );
   };
@@ -425,7 +488,10 @@ const App: React.FC = () => {
 
   if (!booted) {
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex items-center justify-center overflow-hidden">
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex items-center justify-center overflow-hidden"
+        style={curTheme.bgInlineStyle}
+      >
         {introUrl && introTipo === 'video' && <video src={introUrl} autoPlay muted playsInline className="max-w-full max-h-full" />}
         {introUrl && (introTipo === 'gif' || introTipo === 'imagem') && <img src={introUrl} className="max-w-full max-h-full" alt="P.Q.P." />}
         {!introUrl && <h1 className="text-8xl font-black text-white text-comic tracking-tight">P.Q.P.</h1>}
@@ -435,25 +501,30 @@ const App: React.FC = () => {
 
   if (!roomState) {
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col relative overflow-hidden px-6 py-10">
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col relative overflow-hidden px-6 py-6"
+        style={curTheme.bgInlineStyle}
+      >
+        {renderSettingsBar()}
+
         {!connected && (
           <div className="bg-black/50 border-2 border-amber-400/80 rounded-2xl p-2.5 text-center text-amber-300 font-black text-xs uppercase mb-4 animate-pulse">
-            Conectando ao servidor...
+            {t.connectingStatus}
           </div>
         )}
 
         {localScreen === 'home' && (
-          <div className="flex-1 flex flex-col items-center justify-center space-y-12 text-center">
+          <div className="flex-1 flex flex-col items-center justify-center space-y-10 text-center">
             <div className="space-y-3 transform -rotate-1">
-              <h1 className="text-8xl font-black text-white text-comic tracking-tighter drop-shadow-xl">P.Q.P.</h1>
-              <p className="text-xl font-black uppercase tracking-[0.25em] text-amber-300 text-comic-sm">Pra Quem Pode</p>
+              <h1 className="text-8xl font-black text-white text-comic tracking-tighter drop-shadow-xl">{t.gameTitle}</h1>
+              <p className="text-xl font-black uppercase tracking-[0.25em] text-amber-300 text-comic-sm">{t.gameSubtitle}</p>
             </div>
             <div className="w-full max-w-sm space-y-4">
-              <Botao onClick={() => setLocalScreen('create')}>ABRIR SALA</Botao>
-              <Botao variant="secondary" onClick={() => setLocalScreen('join')}>ENTRAR EM SALA</Botao>
+              <Botao theme={theme} onClick={() => setLocalScreen('create')}>{t.hostRoom}</Botao>
+              <Botao theme={theme} variant="secondary" onClick={() => setLocalScreen('join')}>{t.joinRoom}</Botao>
             </div>
-            <div className="bg-black/30 border-2 border-white/20 rounded-2xl px-4 py-2 text-[11px] font-bold text-white/80 uppercase tracking-wider">
-              🎮 Jogo cômico com alto risco de vício
+            <div className="bg-black/30 border-2 border-white/20 rounded-2xl px-4 py-2 text-[11px] font-bold text-white/90 uppercase tracking-wider">
+              🎮 {t.gameTagline}
             </div>
           </div>
         )}
@@ -461,23 +532,23 @@ const App: React.FC = () => {
         {localScreen === 'create' && (
           <div className="flex-1 flex flex-col justify-center space-y-6">
             <div className="text-center space-y-2">
-              <h2 className="text-4xl font-black text-white uppercase text-comic">Você é o Anfitrião</h2>
-              <p className="text-amber-300 font-bold text-sm uppercase">Crie a sala e chame os amigos</p>
+              <h2 className="text-4xl font-black text-white uppercase text-comic">{t.hostRoomTitle}</h2>
+              <p className="text-amber-300 font-bold text-sm uppercase">{t.hostRoomSubtitle}</p>
             </div>
             <div className="space-y-4">
               <input
                 value={hostNameInput}
                 onChange={(e) => setHostNameInput(e.target.value)}
-                placeholder="Seu nome (ex: Carlos)"
+                placeholder={t.yourNamePlaceholder}
                 className="w-full bg-white border-4 border-black p-4 rounded-2xl text-2xl font-black text-black placeholder-zinc-400 shadow-[0_4px_0_#000] focus:shadow-[0_6px_0_#2563eb] outline-none"
               />
               {erro && <p className="text-red-300 font-black text-sm text-center bg-black/40 p-2 rounded-xl border border-red-500">{erro}</p>}
-              <Botao onClick={criarSala}>CRIAR SALA</Botao>
+              <Botao theme={theme} onClick={criarSala}>{t.createRoomBtn}</Botao>
               <button
                 onClick={() => setLocalScreen('home')}
-                className="w-full text-center text-white/70 hover:text-white font-black uppercase text-xs pt-2"
+                className="w-full text-center text-white/80 hover:text-white font-black uppercase text-xs pt-2"
               >
-                ← Voltar
+                {t.backBtn}
               </button>
             </div>
           </div>
@@ -486,32 +557,32 @@ const App: React.FC = () => {
         {localScreen === 'join' && (
           <div className="flex-1 flex flex-col justify-center space-y-6">
             <div className="text-center space-y-2">
-              <h2 className="text-4xl font-black text-white uppercase text-comic">Entrar na Sala</h2>
-              <p className="text-amber-300 font-bold text-sm uppercase">Digite o código ou use a câmera</p>
+              <h2 className="text-4xl font-black text-white uppercase text-comic">{t.joinRoomTitle}</h2>
+              <p className="text-amber-300 font-bold text-sm uppercase">{t.joinRoomSubtitle}</p>
             </div>
             <div className="space-y-4">
               <input
                 value={roomIdInput}
                 onChange={(e) => setRoomIdInput(e.target.value.toUpperCase())}
-                placeholder="CÓDIGO (5 LETRAS)"
+                placeholder={t.roomCodePlaceholder}
                 maxLength={5}
                 className="w-full bg-white border-4 border-black p-4 rounded-2xl text-2xl font-black text-black outline-none uppercase text-center tracking-[0.3em] placeholder:tracking-normal placeholder-zinc-400 shadow-[0_4px_0_#000] focus:shadow-[0_6px_0_#2563eb]"
               />
               <input
                 value={playerNameInput}
                 onChange={(e) => setPlayerNameInput(e.target.value)}
-                placeholder="Seu nome"
+                placeholder={t.yourNamePlaceholder}
                 className="w-full bg-white border-4 border-black p-4 rounded-2xl text-2xl font-black text-black placeholder-zinc-400 shadow-[0_4px_0_#000] focus:shadow-[0_6px_0_#2563eb] outline-none"
               />
               {erro && <p className="text-red-300 font-black text-sm text-center bg-black/40 p-2 rounded-xl border border-red-500">{erro}</p>}
-              <Botao onClick={entrarSala} disabled={entrando || !playerNameInput.trim() || !roomIdInput.trim()}>
-                {entrando ? 'ENTRANDO NA SALA...' : 'ENTRAR'}
+              <Botao theme={theme} onClick={entrarSala} disabled={entrando || !playerNameInput.trim() || !roomIdInput.trim()}>
+                {entrando ? t.sendingAnswer : t.enterRoomBtn}
               </Botao>
               <button
                 onClick={() => setLocalScreen('home')}
-                className="w-full text-center text-white/70 hover:text-white font-black uppercase text-xs pt-2"
+                className="w-full text-center text-white/80 hover:text-white font-black uppercase text-xs pt-2"
               >
-                ← Voltar
+                {t.backBtn}
               </button>
             </div>
           </div>
@@ -523,9 +594,14 @@ const App: React.FC = () => {
   // Sala de espera (LOBBY)
   if (roomState.phase === 'LOBBY') {
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col overflow-hidden px-6 py-8 space-y-5">
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-4"
+        style={curTheme.bgInlineStyle}
+      >
+        {renderTopBar()}
+
         <div className="text-center space-y-1">
-          <p className="text-xs font-black text-amber-300 uppercase tracking-widest">Código da Sala</p>
+          <p className="text-xs font-black text-amber-300 uppercase tracking-widest">{t.roomCodeLabel}</p>
           <div className="inline-block bg-black/60 border-4 border-amber-400 px-6 py-2 rounded-3xl shadow-xl">
             <h1 className="text-6xl font-black text-white text-comic tracking-[0.25em]">{roomState.roomId}</h1>
           </div>
@@ -533,9 +609,9 @@ const App: React.FC = () => {
 
         {souAnfitriao && qrCodeDataUrl && (
           <div className="bg-white p-4 rounded-3xl border-4 border-black mx-auto card-shadow-lg text-center space-y-2 max-w-[240px]">
-            <img src={qrCodeDataUrl} alt="QR Code da sala" className="w-44 h-44 mx-auto rounded-xl" />
+            <img src={qrCodeDataUrl} alt="QR Code" className="w-44 h-44 mx-auto rounded-xl" />
             <p className="text-[11px] font-black text-black uppercase tracking-wider">
-              Aponte a câmera do celular
+              {t.scanQrCode}
             </p>
             {joinUrl && (
               <p className="text-[10px] font-bold text-zinc-600 break-all select-all">
@@ -546,8 +622,8 @@ const App: React.FC = () => {
         )}
 
         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          <p className="text-xs font-black text-white/80 uppercase tracking-wider mb-1">
-            Jogadores na mesa ({roomState.players.length})
+          <p className="text-xs font-black text-white/90 uppercase tracking-wider mb-1">
+            {t.playersInRoom} ({roomState.players.length})
           </p>
           {roomState.players.map((p) => (
             <div
@@ -558,12 +634,12 @@ const App: React.FC = () => {
                 <span className="font-black text-xl text-black">{p.name}</span>
                 {p.isHost && (
                   <span className="bg-amber-300 text-black border-2 border-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                    👑 Anfitrião
+                    {t.hostBadge}
                   </span>
                 )}
                 {p.isBot && (
                   <span className="bg-purple-100 text-purple-900 border-2 border-purple-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                    🤖 Robô
+                    🤖 Bot
                   </span>
                 )}
               </div>
@@ -582,19 +658,21 @@ const App: React.FC = () => {
 
         {souAnfitriao ? (
           <div className="space-y-2 pt-2">
-            <Botao onClick={iniciarPartida} disabled={roomState.players.length < 3}>
-              {roomState.players.length < 3 ? 'PRECISA DE 3 JOGADORES' : 'INICIAR PARTIDA'}
+            <Botao theme={theme} onClick={iniciarPartida} disabled={roomState.players.length < 3}>
+              {roomState.players.length < 3 ? t.waitingPlayersMsg : t.startGameBtn}
             </Botao>
             {roomState.players.length < 3 && (
               <p className="text-[11px] text-center text-amber-200 font-bold uppercase">
-                Adicione mais {3 - roomState.players.length} pessoa(s) para começar
+                {lang === 'pt'
+                  ? `Adicione mais ${3 - roomState.players.length} pessoa(s) para começar`
+                  : `Add ${3 - roomState.players.length} more player(s) to start`}
               </p>
             )}
           </div>
         ) : (
           <div className="bg-black/30 border-2 border-white/20 p-4 rounded-2xl text-center">
             <p className="text-white font-black uppercase text-sm animate-pulse">
-              Aguardando o anfitrião iniciar a partida...
+              {t.waitingHostStart}
             </p>
           </div>
         )}
@@ -605,17 +683,20 @@ const App: React.FC = () => {
   // Oportunidade Coringa Relâmpago (quem clicar primeiro ganha!)
   if (roomState.phase === 'WILDCARD_OFFER' && coringaRush && !souAnfitriao) {
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col items-center justify-center overflow-hidden px-6 space-y-6 text-center animate-urgent">
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col items-center justify-center overflow-hidden px-6 space-y-6 text-center animate-urgent"
+        style={curTheme.bgInlineStyle}
+      >
         {renderTopBar()}
         <div className="space-y-2">
           <span className="bg-amber-400 text-black border-2 border-black font-black text-xs px-3 py-1 rounded-full uppercase tracking-widest animate-bounce">
-            ⚡ RELÂMPAGO
+            ⚡ {lang === 'pt' ? 'RELÂMPAGO' : 'FLASH JOKER'}
           </span>
           <p className="text-4xl font-black text-white text-comic uppercase leading-tight">
-            VOCÊ É O PALHAÇO DA VEZ? 🃏
+            {t.wildcardTitle}
           </p>
           <p className="text-amber-300 font-bold text-xs uppercase tracking-wider">
-            O primeiro a clicar ganha o direito exclusivo de escrever a resposta que quiser!
+            {t.wildcardSubtext}
           </p>
         </div>
 
@@ -633,12 +714,12 @@ const App: React.FC = () => {
           <div className="w-full max-w-sm space-y-4">
             <button
               onClick={pegarCoringa}
-              className="btn-3d w-full py-6 px-4 rounded-3xl font-black text-2xl uppercase tracking-wider bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 border-4 border-black text-black shadow-2xl animate-pulse"
+              className={`btn-3d w-full py-6 px-4 ${curTheme.id === 'popart' ? 'rounded-full' : 'rounded-3xl'} font-black text-2xl uppercase tracking-wider bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 border-4 border-black text-black shadow-2xl animate-pulse`}
             >
-              🤡 EU QUERO SER O CORINGA!
+              {t.wildcardIWantBtn}
             </button>
-            <p className="text-white/60 font-bold uppercase text-xs tracking-widest">
-              Corre que qualquer um na mesa pode pegar!
+            <p className="text-white/80 font-bold uppercase text-xs tracking-widest">
+              {lang === 'pt' ? 'Corre que qualquer um na mesa pode pegar!' : 'Hurry, anyone at the table can grab it!'}
             </p>
           </div>
         )}
@@ -649,7 +730,10 @@ const App: React.FC = () => {
   // Revelação (personalizada por papel)
   if (roomState.phase === 'REVEAL_ROUND' && revealPayload) {
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col items-center justify-center overflow-hidden px-6 space-y-6 text-center">
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col items-center justify-center overflow-hidden px-6 space-y-6 text-center"
+        style={curTheme.bgInlineStyle}
+      >
         {renderTopBar()}
         <div className="space-y-1">
           <p className="text-4xl font-black text-white text-comic uppercase leading-tight">
@@ -661,15 +745,15 @@ const App: React.FC = () => {
         </div>
         <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg rotate-1 max-w-sm">
           <span className="inline-block bg-black text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-3 tracking-widest">
-            A FRASE VENCEDORA
+            {t.winningPhraseLabel}
           </span>
           <p
             className="text-xl leading-relaxed text-black font-bold"
             dangerouslySetInnerHTML={{ __html: montarFrase(revealPayload.frase.texto, revealPayload.frase.respostas) }}
           />
         </div>
-        <p className="text-white/60 font-bold uppercase text-xs tracking-widest">
-          Próxima rodada iniciando em instantes...
+        <p className="text-white/80 font-bold uppercase text-xs tracking-widest">
+          {t.nextRoundSoon}
         </p>
       </div>
     );
@@ -678,22 +762,25 @@ const App: React.FC = () => {
   // Fim de jogo
   if (roomState.phase === 'GAME_OVER' && championPayload) {
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-y-auto px-6 py-10 space-y-6 text-center bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 text-black">
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-y-auto px-6 py-8 space-y-6 text-center"
+        style={curTheme.bgInlineStyle}
+      >
         <div className="space-y-1">
-          <h2 className="text-7xl font-black uppercase tracking-tighter text-comic text-white">VENCEDOR!</h2>
-          <p className="text-xl font-black uppercase tracking-widest text-black">P.Q.P. - O JOGO É DELE</p>
+          <h2 className="text-7xl font-black uppercase tracking-tighter text-comic text-white">{t.gameOverTitle}</h2>
+          <p className="text-xl font-black uppercase tracking-widest text-amber-300">{t.gameOverSubtitle}</p>
         </div>
 
         <div className="bg-black text-white p-6 rounded-3xl w-full max-w-sm mx-auto rotate-1 shadow-2xl border-4 border-white space-y-1">
           <span className="text-3xl">👑</span>
           <h3 className="text-4xl font-black uppercase tracking-tight">{championPayload.campeao}</h3>
-          <p className="text-amber-300 font-bold text-xs uppercase tracking-widest">Campeão Supremo da Mesa</p>
+          <p className="text-amber-300 font-bold text-xs uppercase tracking-widest">{t.championBadge}</p>
         </div>
 
-        <div className="bg-black/15 rounded-3xl p-5 w-full max-w-sm mx-auto text-left space-y-3 border-2 border-black/30">
-          <p className="text-xs font-black uppercase tracking-widest text-black">Placar Final</p>
+        <div className="bg-black/30 backdrop-blur-md rounded-3xl p-5 w-full max-w-sm mx-auto text-left space-y-3 border-2 border-white/20">
+          <p className="text-xs font-black uppercase tracking-widest text-white">{t.finalScoreLabel}</p>
           {championPayload.ranking.map((p, i) => (
-            <div key={p.id} className="flex justify-between items-center text-sm font-black bg-white/70 p-2.5 rounded-xl border border-black/20">
+            <div key={p.id} className="flex justify-between items-center text-sm font-black bg-white p-2.5 rounded-xl border-2 border-black text-black card-shadow">
               <span>{i + 1}. {p.name} {p.name === championPayload.campeao ? '👑' : ''}</span>
               <span>{p.score.toFixed(1)} pts</span>
             </div>
@@ -701,8 +788,8 @@ const App: React.FC = () => {
         </div>
 
         <div className="space-y-3 w-full max-w-sm mx-auto">
-          <Botao variant="primary" onClick={() => jogarNovamente(true)}>JOGAR NOVAMENTE</Botao>
-          <Botao variant="secondary" onClick={() => jogarNovamente(false)}>SAIR DA SALA</Botao>
+          <Botao theme={theme} variant="primary" onClick={() => jogarNovamente(true)}>{t.playAgainBtn}</Botao>
+          <Botao theme={theme} variant="secondary" onClick={() => jogarNovamente(false)}>{t.exitRoomBtn}</Botao>
         </div>
       </div>
     );
@@ -711,33 +798,38 @@ const App: React.FC = () => {
   // Anfitrião confirma ou sorteia outra pergunta
   if (roomState.phase === 'PROMPT_SELECTION') {
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col overflow-hidden px-6 py-6 space-y-5">
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-5"
+        style={curTheme.bgInlineStyle}
+      >
         {renderTopBar()}
 
         {souAnfitriao ? (
           <div className="flex-1 flex flex-col justify-between py-2 space-y-4">
             <div className="space-y-1 text-center">
-              <h2 className="text-3xl font-black text-white text-comic uppercase">Sua vez, {meuNome}!</h2>
+              <h2 className="text-3xl font-black text-white text-comic uppercase">
+                {t.yourTurn.replace('{name}', meuNome || '')}
+              </h2>
               <p className="text-amber-300 font-bold uppercase text-xs tracking-wider">
-                Pergunta sorteada pelo sistema
+                {t.promptDrawnSubtitle}
               </p>
             </div>
 
             <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg rotate-[-0.5deg] space-y-3 text-center my-auto">
               <span className="inline-block bg-black text-white text-[10px] font-black uppercase px-3 py-1 rounded-full tracking-widest">
-                CARTA DA RODADA ({roomState.currentPrompt?.slots || 1} ESPAÇO{roomState.currentPrompt?.slots && roomState.currentPrompt.slots > 1 ? 'S' : ''})
+                {t.roundCardLabel} ({roomState.currentPrompt?.slots || 1} {t.spacesLabel})
               </span>
               <p className="text-2xl text-black font-black leading-snug">
-                {roomState.currentPrompt?.text || 'Sorteando pergunta...'}
+                {roomState.currentPrompt?.text || '...'}
               </p>
             </div>
 
             <div className="space-y-3">
-              <Botao onClick={confirmarPergunta} disabled={!roomState.currentPrompt}>
-                USAR ESTA PERGUNTA
+              <Botao theme={theme} onClick={confirmarPergunta} disabled={!roomState.currentPrompt}>
+                {t.useThisQuestionBtn}
               </Botao>
-              <Botao variant="secondary" onClick={sortearPergunta}>
-                🎲 SORTEAR OUTRA PERGUNTA
+              <Botao theme={theme} variant="secondary" onClick={sortearPergunta}>
+                {t.drawAnotherBtn}
               </Botao>
             </div>
           </div>
@@ -746,7 +838,7 @@ const App: React.FC = () => {
             <span className="text-5xl animate-bounce">⏳</span>
             <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg max-w-sm">
               <p className="text-xl font-black text-black uppercase leading-relaxed">
-                Aguardando {currentHostPlayer?.name || 'o anfitrião'} confirmar a pergunta da rodada...
+                {t.waitingHostPrompt.replace('{name}', currentHostPlayer?.name || '')}
               </p>
             </div>
           </div>
@@ -759,19 +851,22 @@ const App: React.FC = () => {
   if (roomState.phase === 'SUBMIT_ANSWERS' || roomState.phase === 'WILDCARD_OFFER') {
     if (souAnfitriao) {
       return (
-        <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col overflow-hidden px-6 py-6 space-y-6">
+        <div
+          className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-6"
+          style={curTheme.bgInlineStyle}
+        >
           {renderTopBar()}
           <div className="flex-1 flex flex-col items-center justify-center space-y-6 text-center">
             <span className="text-5xl">✍️</span>
             <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg max-w-sm rotate-[-0.5deg]">
               <span className="inline-block bg-black text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-3 tracking-widest">
-                SUA PERGUNTA
+                {t.yourQuestion}
               </span>
               <p className="text-2xl text-black font-black leading-relaxed">{roomState.currentPrompt?.text}</p>
             </div>
             <div className="bg-black/40 border-2 border-white/30 px-6 py-3 rounded-2xl">
               <p className="text-amber-300 font-black uppercase text-sm animate-pulse">
-                Aguardando as respostas dos participantes...
+                {t.waitingAnswers}
               </p>
             </div>
           </div>
@@ -782,12 +877,15 @@ const App: React.FC = () => {
     const slots = roomState.currentPrompt?.slots || 1;
 
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col overflow-hidden px-6 py-6 space-y-4">
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-4"
+        style={curTheme.bgInlineStyle}
+      >
         {renderTopBar()}
 
         <div className="bg-white border-4 border-black rounded-3xl p-5 card-shadow rotate-[-0.5deg]">
           <span className="inline-block bg-black text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full mb-2 tracking-widest">
-            COMPLETE A FRASE
+            {t.completePhrase}
           </span>
           <p className="text-xl text-black font-black leading-snug">{roomState.currentPrompt?.text}</p>
         </div>
@@ -795,11 +893,13 @@ const App: React.FC = () => {
         {roomState.isWildcardHolder ? (
           <div className="flex-1 space-y-3 overflow-y-auto">
             <div className="bg-amber-400 border-3 border-black rounded-2xl p-2 text-center text-black font-black text-xs uppercase tracking-wider">
-              🃏 Você é o Palhaço da Vez — escreva o que quiser!
+              {t.wildcardTypingNotice}
             </div>
             {Array.from({ length: slots }).map((_, idx) => (
               <div key={idx} className="space-y-1">
-                <label className="text-[11px] font-black text-white/80 uppercase">Espaço {idx + 1}</label>
+                <label className="text-[11px] font-black text-white/80 uppercase">
+                  {t.spaceNumber.replace('{num}', String(idx + 1))}
+                </label>
                 <input
                   value={freeTexts[idx] || ''}
                   onChange={(e) =>
@@ -809,7 +909,7 @@ const App: React.FC = () => {
                       return cp;
                     })
                   }
-                  placeholder={`Digite sua resposta ${idx + 1}...`}
+                  placeholder={t.typeYourAnswer.replace('{num}', String(idx + 1))}
                   className="w-full bg-white border-4 border-black p-4 rounded-2xl text-xl font-black text-black outline-none card-shadow focus:border-blue-600"
                 />
               </div>
@@ -818,7 +918,7 @@ const App: React.FC = () => {
         ) : (
           <div className="flex-1 space-y-2.5 overflow-y-auto pr-1">
             <p className="text-white/90 font-black uppercase text-xs text-center">
-              Escolha <strong className="text-amber-300 underline">{slots} carta(s)</strong> da sua mão:
+              {t.chooseFromHand.replace('{slots}', String(slots))}
             </p>
             {roomState.yourHand.map((carta, idx) => {
               const selectedIndex = handSelection.indexOf(idx);
@@ -843,7 +943,7 @@ const App: React.FC = () => {
                     <span>{carta}</span>
                     {selecionada && (
                       <span className="bg-amber-400 text-black border-2 border-black text-[10px] font-black px-2 py-0.5 rounded-lg uppercase flex-shrink-0">
-                        {slots > 1 ? `${selectedIndex + 1}º Espaço` : '✔ Escolhida'}
+                        {slots > 1 ? `${selectedIndex + 1}º` : '✔'}
                       </span>
                     )}
                   </div>
@@ -854,6 +954,7 @@ const App: React.FC = () => {
         )}
 
         <Botao
+          theme={theme}
           onClick={enviarResposta}
           disabled={
             aguardandoEnvio ||
@@ -862,7 +963,7 @@ const App: React.FC = () => {
               : handSelection.length !== slots)
           }
         >
-          {aguardandoEnvio ? 'ENVIANDO...' : 'CONFIRMAR RESPOSTA'}
+          {aguardandoEnvio ? t.sendingAnswer : t.confirmAnswerBtn}
         </Botao>
       </div>
     );
@@ -871,16 +972,21 @@ const App: React.FC = () => {
   // Leitura em voz alta pelo anfitrião + voto da mesa
   if (roomState.phase === 'JUDGMENT_READING') {
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col overflow-hidden px-6 py-6 space-y-5">
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-5"
+        style={curTheme.bgInlineStyle}
+      >
         {renderTopBar()}
 
         <div className="flex justify-between items-center">
           <div>
-            <p className="text-xs font-black text-white/80 uppercase">
-              Resposta {(readingCard?.index ?? 0) + 1} de {readingCard?.total ?? '?'}
+            <p className="text-xs font-black text-white/90 uppercase">
+              {t.readingAnswerCount
+                .replace('{current}', String((readingCard?.index ?? 0) + 1))
+                .replace('{total}', String(readingCard?.total ?? '?'))}
             </p>
             <p className="text-[11px] font-bold text-amber-300 uppercase">
-              Anfitrião lendo para a mesa
+              {t.hostReadingSubtitle}
             </p>
           </div>
           {!askingVote && (
@@ -898,7 +1004,7 @@ const App: React.FC = () => {
         {readingCard && (
           <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg rotate-1">
             <span className="inline-block bg-black text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-3 tracking-widest">
-              LEIA COM ENTUSIASMO 🗣️
+              {lang === 'pt' ? 'LEIA COM ENTUSIASMO 🗣️' : 'READ WITH ENTHUSIASM 🗣️'}
             </span>
             <p className="text-2xl leading-relaxed text-black font-black">
               {readingCard.texts.join('  •  ')}
@@ -908,8 +1014,8 @@ const App: React.FC = () => {
 
         {souAnfitriao && !askingVote && (
           <div className="flex-1 flex flex-col justify-end space-y-3">
-            <Botao variant="primary" onClick={pedirParaMesa}>
-              JÁ LI, PERGUNTAR PRA MESA
+            <Botao theme={theme} variant="primary" onClick={pedirParaMesa}>
+              {lang === 'pt' ? 'JÁ LI, PERGUNTAR PRA MESA' : 'FINISHED READING, ASK TABLE'}
             </Botao>
           </div>
         )}
@@ -918,18 +1024,18 @@ const App: React.FC = () => {
           <div className="flex-1 flex flex-col justify-center items-center space-y-6">
             <div className="speech-bubble rounded-3xl p-6 max-w-sm text-center">
               <p className="text-2xl font-black uppercase text-black">
-                Ele leu em voz alta a tempo? 🗣️
+                {t.askVoteTitle}
               </p>
               <p className="text-xs font-bold text-zinc-500 uppercase mt-1">
-                A mesa decide junto
+                {t.askVoteSubtitle}
               </p>
             </div>
             <div className="w-full max-w-sm grid grid-cols-2 gap-4">
-              <Botao variant="danger" onClick={() => votar(false)}>
-                NÃO (-0.1)
+              <Botao theme={theme} variant="danger" onClick={() => votar(false)}>
+                {t.voteNoBtn}
               </Botao>
-              <Botao variant="success" onClick={() => votar(true)}>
-                SIM (OK)
+              <Botao theme={theme} variant="success" onClick={() => votar(true)}>
+                {t.voteYesBtn}
               </Botao>
             </div>
           </div>
@@ -939,7 +1045,7 @@ const App: React.FC = () => {
           <div className="flex-1 flex items-center justify-center">
             <div className="bg-black/40 border-2 border-white/30 px-6 py-4 rounded-2xl text-center">
               <p className="text-amber-300 font-black uppercase text-sm animate-pulse">
-                Apurando os votos da mesa...
+                {t.voteSentMsg}
               </p>
             </div>
           </div>
@@ -952,13 +1058,16 @@ const App: React.FC = () => {
   if (roomState.phase === 'JUDGMENT_PICKING') {
     if (!souAnfitriao) {
       return (
-        <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col overflow-hidden px-6 py-6">
+        <div
+          className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6"
+          style={curTheme.bgInlineStyle}
+        >
           {renderTopBar()}
           <div className="flex-1 flex flex-col items-center justify-center space-y-4 text-center px-4">
             <span className="text-5xl animate-bounce">👑</span>
             <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg max-w-sm">
               <p className="text-xl font-black text-black uppercase leading-relaxed">
-                {currentHostPlayer?.name || 'O anfitrião'} está escolhendo a melhor resposta da rodada...
+                {t.waitingHostPick.replace('{name}', currentHostPlayer?.name || '')}
               </p>
             </div>
           </div>
@@ -966,11 +1075,14 @@ const App: React.FC = () => {
       );
     }
     return (
-      <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex flex-col overflow-hidden px-6 py-6 space-y-4">
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-4"
+        style={curTheme.bgInlineStyle}
+      >
         {renderTopBar()}
         <div className="text-center space-y-1">
-          <h2 className="text-3xl font-black text-white text-comic uppercase">Escolha a Melhor</h2>
-          <p className="text-amber-300 font-bold uppercase text-xs">A frase mais engraçada leva +0.8 ponto</p>
+          <h2 className="text-3xl font-black text-white text-comic uppercase">{t.pickWinnerTitle}</h2>
+          <p className="text-amber-300 font-bold uppercase text-xs">{t.pickWinnerSubtitle}</p>
         </div>
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
           {(pickingSubmissions || []).map((s, i) => (
@@ -981,7 +1093,7 @@ const App: React.FC = () => {
               }`}
             >
               <p className="text-xl text-black font-black mb-4 leading-snug">{s.texts.join('  •  ')}</p>
-              <Botao onClick={() => escolherVencedora(s.submissionId)}>VOTAR NESTA</Botao>
+              <Botao theme={theme} onClick={() => escolherVencedora(s.submissionId)}>{t.voteThisCardBtn}</Botao>
             </div>
           ))}
         </div>
@@ -990,8 +1102,11 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen max-w-lg mx-auto felt-bg flex items-center justify-center overflow-hidden">
-      <p className="text-white/80 font-black uppercase tracking-widest text-sm animate-pulse">Carregando...</p>
+    <div
+      className="h-screen w-screen max-w-lg mx-auto flex items-center justify-center overflow-hidden"
+      style={curTheme.bgInlineStyle}
+    >
+      <p className="text-white font-black uppercase tracking-widest text-sm animate-pulse">Carregando...</p>
     </div>
   );
 };
