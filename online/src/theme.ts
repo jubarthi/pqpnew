@@ -6,16 +6,14 @@ export interface ThemeStyles {
   icon: string;
   bgClass: string;
   bgInlineStyle: React.CSSProperties;
-  cardClass: string;
+  titleClass: string;
+  subtitleClass: string;
   cardPromptClass: string;
+  cardOptionClass: (selected: boolean) => string;
   btnPrimaryClass: string;
-  btnSuccessClass: string;
-  btnDangerClass: string;
   btnSecondaryClass: string;
-  topBarBadgeClass: string;
-  badgeClass: string;
-  headingTextClass: string;
-  subheadingTextClass: string;
+  btnDangerClass: string;
+  btnSuccessClass: string;
 }
 
 export const themes: Record<ThemeType, ThemeStyles> = {
@@ -28,37 +26,43 @@ export const themes: Record<ThemeType, ThemeStyles> = {
       background: 'radial-gradient(ellipse at 50% 15%, #1fa147 0%, #167a34 50%, #0d4a1f 85%, #082d13 100%)',
       boxShadow: 'inset 0 0 100px rgba(0, 0, 0, 0.45)',
     },
-    cardClass: 'bg-white border-4 border-black rounded-3xl p-5 card-shadow text-black',
+    titleClass: 'text-white font-black title-crisp tracking-tight',
+    subtitleClass: 'text-amber-300 font-black tracking-widest uppercase text-sm',
     cardPromptClass: 'bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg text-black rotate-[-0.5deg]',
-    btnPrimaryClass: 'btn-3d bg-amber-400 text-black border-4 border-black hover:bg-amber-300 font-black rounded-2xl',
-    btnSuccessClass: 'btn-3d bg-emerald-500 text-white border-4 border-black hover:bg-emerald-400 font-black rounded-2xl',
-    btnDangerClass: 'btn-3d bg-red-500 text-white border-4 border-black hover:bg-red-400 font-black rounded-2xl',
-    btnSecondaryClass: 'btn-3d bg-white/20 text-white border-3 border-white/50 hover:bg-white/30 font-black rounded-2xl',
-    topBarBadgeClass: 'bg-black/60 border-2 border-white/30 text-white font-black text-xs px-3 py-1 rounded-full',
-    badgeClass: 'bg-black text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-widest',
-    headingTextClass: 'text-white text-comic font-black',
-    subheadingTextClass: 'text-amber-300 font-bold',
+    cardOptionClass: (selected: boolean) =>
+      `w-full text-left p-4 rounded-2xl font-black text-base leading-snug transition-all transform select-none ${
+        selected
+          ? 'bg-amber-100 border-4 border-amber-500 ring-4 ring-amber-300/80 -translate-y-1 shadow-[0_8px_0_#000] text-black'
+          : 'bg-white border-3 border-black card-shadow hover:-translate-y-0.5 active:translate-y-1 text-black'
+      }`,
+    btnPrimaryClass: 'btn-3d bg-gradient-to-b from-amber-300 to-amber-400 text-black border-4 border-black font-black rounded-2xl shadow-[0_6px_0_#000]',
+    btnSecondaryClass: 'btn-3d bg-gradient-to-b from-blue-500 to-blue-600 text-white border-4 border-black font-black rounded-2xl shadow-[0_6px_0_#000]',
+    btnDangerClass: 'btn-3d bg-gradient-to-b from-rose-500 to-red-600 text-white border-4 border-black font-black rounded-2xl shadow-[0_6px_0_#000]',
+    btnSuccessClass: 'btn-3d bg-gradient-to-b from-emerald-400 to-emerald-500 text-black border-4 border-black font-black rounded-2xl shadow-[0_6px_0_#000]',
   },
   popart: {
     id: 'popart',
-    name: 'Pop Art Comic',
+    name: 'Comic Quiz Azul',
     icon: '⚡',
-    bgClass: 'popart-bg text-slate-900',
+    bgClass: 'comic-blue-bg text-white',
     bgInlineStyle: {
-      backgroundColor: '#FFE600',
-      backgroundImage: `radial-gradient(#F59E0B 12%, transparent 12%), radial-gradient(#F59E0B 12%, transparent 12%)`,
-      backgroundPosition: '0 0, 15px 15px',
-      backgroundSize: '30px 30px',
+      backgroundColor: '#0088FF',
+      backgroundImage: 'radial-gradient(#0066CC 15%, transparent 15%)',
+      backgroundPosition: '0 0',
+      backgroundSize: '22px 22px',
     },
-    cardClass: 'bg-white border-4 border-black rounded-[2rem] p-5 card-shadow text-black relative shadow-[0_8px_0_#000]',
-    cardPromptClass: 'bg-white border-4 border-black rounded-[2.5rem] p-6 card-shadow-lg text-black rotate-[-1deg] shadow-[0_10px_0_#000]',
-    btnPrimaryClass: 'btn-3d bg-blue-600 text-white border-4 border-black hover:bg-blue-500 font-black rounded-full shadow-[0_6px_0_#000]',
-    btnSuccessClass: 'btn-3d bg-emerald-400 text-black border-4 border-black hover:bg-emerald-300 font-black rounded-full shadow-[0_6px_0_#000]',
-    btnDangerClass: 'btn-3d bg-rose-500 text-white border-4 border-black hover:bg-rose-400 font-black rounded-full shadow-[0_6px_0_#000]',
-    btnSecondaryClass: 'btn-3d bg-white text-black border-4 border-black hover:bg-slate-100 font-black rounded-full shadow-[0_6px_0_#000]',
-    topBarBadgeClass: 'bg-white border-3 border-black text-black font-black text-xs px-3 py-1 rounded-full shadow-[0_3px_0_#000]',
-    badgeClass: 'bg-blue-600 text-white text-[11px] font-black uppercase px-3 py-1 rounded-full tracking-wider border-2 border-black',
-    headingTextClass: 'text-slate-900 text-comic font-black',
-    subheadingTextClass: 'text-blue-900 font-black',
+    titleClass: 'text-white font-black title-crisp tracking-tight',
+    subtitleClass: 'text-sky-200 font-extrabold tracking-widest uppercase text-sm',
+    cardPromptClass: 'card-comic-doodle p-6 text-[#003388] rotate-[-1deg]',
+    cardOptionClass: (selected: boolean) =>
+      `w-full text-left p-4 rounded-full font-black text-base leading-snug transition-all transform select-none relative ${
+        selected
+          ? 'bg-amber-300 text-black border-4 border-black shadow-[0_6px_0_#000] scale-[1.02]'
+          : 'bg-white text-[#003388] border-3 border-[#003388]/30 btn-comic-pill hover:border-[#003388] hover:scale-[1.01]'
+      }`,
+    btnPrimaryClass: 'btn-3d bg-white text-[#003388] border-4 border-black font-black rounded-full shadow-[0_6px_0_#000]',
+    btnSecondaryClass: 'btn-3d bg-[#003388] text-white border-4 border-black font-black rounded-full shadow-[0_6px_0_#000]',
+    btnDangerClass: 'btn-3d bg-rose-500 text-white border-4 border-black font-black rounded-full shadow-[0_6px_0_#000]',
+    btnSuccessClass: 'btn-3d bg-emerald-400 text-black border-4 border-black font-black rounded-full shadow-[0_6px_0_#000]',
   },
 };

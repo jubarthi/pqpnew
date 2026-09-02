@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;700;800;900&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
   <style>
     html, body {
       width: 100%;
@@ -18,15 +18,21 @@
       padding-bottom: env(safe-area-inset-bottom, 0px);
     }
     body {
-      font-family: 'Baloo 2', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background-color: #0b3818;
-      color: #fff;
+      font-family: 'Outfit', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
     }
     .felt-bg {
       background: radial-gradient(ellipse at 50% 15%, #1fa147 0%, #167a34 50%, #0d4a1f 85%, #082d13 100%);
       box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.45);
+    }
+    .comic-blue-bg {
+      background-color: #0088FF;
+      background-image: radial-gradient(#0066CC 15%, transparent 15%);
+      background-position: 0 0;
+      background-size: 22px 22px;
     }
     .btn-3d {
       transition: transform 0.08s ease, box-shadow 0.08s ease;
@@ -40,13 +46,24 @@
       transform: translateY(4px);
       box-shadow: 0 2px 0 #000;
     }
-    .text-comic {
-      -webkit-text-stroke: 2.5px #000;
-      text-shadow: 3px 3px 0px #000;
+    .btn-comic-pill {
+      transition: transform 0.08s ease, box-shadow 0.08s ease;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
     }
-    .text-comic-sm {
-      -webkit-text-stroke: 1.5px #000;
-      text-shadow: 2px 2px 0px #000;
+    .btn-comic-pill:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+    /* Fontes limpas e nítidas sem serrilhado */
+    .title-crisp {
+      color: #FFFFFF;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+    }
+    .title-comic-blue {
+      color: #003388;
+      font-weight: 900;
+      letter-spacing: -0.01em;
     }
     .card-shadow {
       box-shadow: 0 6px 0 rgba(0, 0, 0, 0.9), 0 10px 20px rgba(0, 0, 0, 0.25);
@@ -54,30 +71,21 @@
     .card-shadow-lg {
       box-shadow: 0 8px 0 rgba(0, 0, 0, 0.95), 0 15px 30px rgba(0, 0, 0, 0.35);
     }
-    .speech-bubble {
+    .card-comic-doodle {
       position: relative;
-      background: #fff;
-      border: 4px solid #000;
-      box-shadow: 0 6px 0 #000;
+      background: #ffffff;
+      border-radius: 28px;
+      box-shadow: 0 10px 25px rgba(0, 40, 100, 0.25);
     }
-    .speech-bubble::after {
+    .card-comic-doodle::before {
       content: '';
       position: absolute;
-      left: 40px;
-      bottom: -18px;
-      border-width: 18px 14px 0 14px;
-      border-style: solid;
-      border-color: #000 transparent transparent transparent;
-    }
-    .speech-bubble::before {
-      content: '';
-      position: absolute;
-      left: 43px;
-      bottom: -12px;
-      border-width: 14px 11px 0 11px;
-      border-style: solid;
-      border-color: #fff transparent transparent transparent;
-      z-index: 1;
+      inset: -5px;
+      border: 3px solid #000;
+      border-radius: 32px;
+      transform: rotate(-1.5deg);
+      pointer-events: none;
+      z-index: -1;
     }
     /* Scrollbar estilizada */
     ::-webkit-scrollbar {
@@ -96,7 +104,7 @@
     }
     @keyframes pulse-urgent {
       0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.08); }
+      50% { transform: scale(1.06); }
     }
     .animate-urgent {
       animation: pulse-urgent 0.8s ease-in-out infinite;

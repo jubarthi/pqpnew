@@ -56,24 +56,38 @@ export const Botao: React.FC<{
   theme?: ThemeType;
 }> = ({ children, onClick, variant = 'primary', disabled, className = '', theme = 'cassino' }) => {
   const isPop = theme === 'popart';
+  if (isPop) {
+    const cores = {
+      primary: 'bg-white text-[#003388] border-3 border-[#003388] shadow-[0_6px_16px_rgba(0,0,0,0.25)] hover:bg-sky-50',
+      secondary: 'bg-[#003388] text-white border-3 border-white/50 shadow-[0_6px_16px_rgba(0,0,0,0.25)] hover:bg-[#002266]',
+      danger: 'bg-rose-500 text-white border-3 border-black shadow-[0_6px_0_#000]',
+      success: 'bg-emerald-400 text-black border-3 border-black shadow-[0_6px_0_#000]',
+    }[variant];
+    return (
+      <div className="relative flex items-center justify-center my-1 w-full">
+        <div className="absolute left-0 right-0 h-0.5 bg-white/40 pointer-events-none" />
+        <button
+          onClick={onClick}
+          disabled={disabled}
+          className={`relative z-10 btn-comic-pill w-full max-w-xs py-3.5 px-8 rounded-full font-black text-xl uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed select-none transition-all ${cores} ${className}`}
+        >
+          {children}
+        </button>
+      </div>
+    );
+  }
+
   const cores = {
-    primary: isPop
-      ? 'bg-gradient-to-b from-blue-500 to-blue-600 text-white border-4 border-black shadow-[0_6px_0_#000]'
-      : 'bg-gradient-to-b from-amber-300 to-amber-400 text-black border-4 border-black shadow-[0_6px_0_#000]',
-    secondary: isPop
-      ? 'bg-white text-black border-4 border-black shadow-[0_6px_0_#000]'
-      : 'bg-gradient-to-b from-blue-500 to-blue-600 text-white border-4 border-black shadow-[0_6px_0_#000]',
+    primary: 'bg-gradient-to-b from-amber-300 to-amber-400 text-black border-4 border-black shadow-[0_6px_0_#000]',
+    secondary: 'bg-gradient-to-b from-blue-500 to-blue-600 text-white border-4 border-black shadow-[0_6px_0_#000]',
     danger: 'bg-gradient-to-b from-rose-500 to-red-600 text-white border-4 border-black shadow-[0_6px_0_#000]',
-    success: isPop
-      ? 'bg-gradient-to-b from-emerald-300 to-emerald-400 text-black border-4 border-black shadow-[0_6px_0_#000]'
-      : 'bg-gradient-to-b from-emerald-400 to-emerald-500 text-black border-4 border-black shadow-[0_6px_0_#000]',
+    success: 'bg-gradient-to-b from-emerald-400 to-emerald-500 text-black border-4 border-black shadow-[0_6px_0_#000]',
   }[variant];
-  const rounded = isPop ? 'rounded-full' : 'rounded-2xl';
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`btn-3d w-full py-4 px-6 ${rounded} font-black text-xl uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed select-none ${cores} ${className}`}
+      className={`btn-3d w-full py-4 px-6 rounded-2xl font-black text-xl uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed select-none ${cores} ${className}`}
     >
       {children}
     </button>
@@ -494,7 +508,7 @@ const App: React.FC = () => {
       >
         {introUrl && introTipo === 'video' && <video src={introUrl} autoPlay muted playsInline className="max-w-full max-h-full" />}
         {introUrl && (introTipo === 'gif' || introTipo === 'imagem') && <img src={introUrl} className="max-w-full max-h-full" alt="P.Q.P." />}
-        {!introUrl && <h1 className="text-8xl font-black text-white text-comic tracking-tight">P.Q.P.</h1>}
+        {!introUrl && <h1 className="text-7xl font-black text-white title-crisp tracking-tight">P.Q.P.</h1>}
       </div>
     );
   }
@@ -514,12 +528,24 @@ const App: React.FC = () => {
         )}
 
         {localScreen === 'home' && (
-          <div className="flex-1 flex flex-col items-center justify-center space-y-10 text-center">
-            <div className="space-y-3 transform -rotate-1">
-              <h1 className="text-8xl font-black text-white text-comic tracking-tighter drop-shadow-xl">{t.gameTitle}</h1>
-              <p className="text-xl font-black uppercase tracking-[0.25em] text-amber-300 text-comic-sm">{t.gameSubtitle}</p>
-            </div>
-            <div className="w-full max-w-sm space-y-4">
+          <div className="flex-1 flex flex-col items-center justify-center space-y-8 text-center">
+            {theme === 'popart' ? (
+              <div className="relative w-full max-w-[280px] mx-auto p-8 bg-white rounded-[2rem] shadow-[0_12px_28px_rgba(0,30,80,0.3)] rotate-[-1deg] border-4 border-[#003388] text-center my-2 select-none">
+                <span className="absolute -top-4 -left-3 text-2xl rotate-[-15deg]">⚡</span>
+                <span className="absolute -top-3 right-4 text-2xl font-black text-[#003388]">?</span>
+                <span className="absolute -bottom-3 -left-2 text-xl rotate-12">⚙️</span>
+                <span className="absolute -bottom-4 right-6 text-xl">💦</span>
+                <h1 className="text-6xl font-black text-[#003388] tracking-tight">{t.gameTitle}</h1>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-sky-600 mt-1">{t.gameSubtitle}</p>
+              </div>
+            ) : (
+              <div className="space-y-2 transform -rotate-1 text-center my-2 select-none">
+                <h1 className="text-7xl font-black text-white title-crisp tracking-tight">{t.gameTitle}</h1>
+                <p className="text-lg font-black uppercase tracking-[0.25em] text-amber-300 drop-shadow-sm">{t.gameSubtitle}</p>
+              </div>
+            )}
+
+            <div className="w-full max-w-sm space-y-3">
               <Botao theme={theme} onClick={() => setLocalScreen('create')}>{t.hostRoom}</Botao>
               <Botao theme={theme} variant="secondary" onClick={() => setLocalScreen('join')}>{t.joinRoom}</Botao>
             </div>
@@ -531,16 +557,16 @@ const App: React.FC = () => {
 
         {localScreen === 'create' && (
           <div className="flex-1 flex flex-col justify-center space-y-6">
-            <div className="text-center space-y-2">
-              <h2 className="text-4xl font-black text-white uppercase text-comic">{t.hostRoomTitle}</h2>
-              <p className="text-amber-300 font-bold text-sm uppercase">{t.hostRoomSubtitle}</p>
+            <div className="text-center space-y-1">
+              <h2 className="text-4xl font-black text-white title-crisp uppercase">{t.hostRoomTitle}</h2>
+              <p className={curTheme.subtitleClass}>{t.hostRoomSubtitle}</p>
             </div>
             <div className="space-y-4">
               <input
                 value={hostNameInput}
                 onChange={(e) => setHostNameInput(e.target.value)}
                 placeholder={t.yourNamePlaceholder}
-                className="w-full bg-white border-4 border-black p-4 rounded-2xl text-2xl font-black text-black placeholder-zinc-400 shadow-[0_4px_0_#000] focus:shadow-[0_6px_0_#2563eb] outline-none"
+                className={`w-full bg-white border-4 border-black p-4 ${curTheme.id === 'popart' ? 'rounded-full text-center' : 'rounded-2xl'} text-2xl font-black text-black placeholder-zinc-400 shadow-[0_4px_0_#000] focus:shadow-[0_6px_0_#2563eb] outline-none`}
               />
               {erro && <p className="text-red-300 font-black text-sm text-center bg-black/40 p-2 rounded-xl border border-red-500">{erro}</p>}
               <Botao theme={theme} onClick={criarSala}>{t.createRoomBtn}</Botao>
@@ -556,9 +582,9 @@ const App: React.FC = () => {
 
         {localScreen === 'join' && (
           <div className="flex-1 flex flex-col justify-center space-y-6">
-            <div className="text-center space-y-2">
-              <h2 className="text-4xl font-black text-white uppercase text-comic">{t.joinRoomTitle}</h2>
-              <p className="text-amber-300 font-bold text-sm uppercase">{t.joinRoomSubtitle}</p>
+            <div className="text-center space-y-1">
+              <h2 className="text-4xl font-black text-white title-crisp uppercase">{t.joinRoomTitle}</h2>
+              <p className={curTheme.subtitleClass}>{t.joinRoomSubtitle}</p>
             </div>
             <div className="space-y-4">
               <input
@@ -566,13 +592,13 @@ const App: React.FC = () => {
                 onChange={(e) => setRoomIdInput(e.target.value.toUpperCase())}
                 placeholder={t.roomCodePlaceholder}
                 maxLength={5}
-                className="w-full bg-white border-4 border-black p-4 rounded-2xl text-2xl font-black text-black outline-none uppercase text-center tracking-[0.3em] placeholder:tracking-normal placeholder-zinc-400 shadow-[0_4px_0_#000] focus:shadow-[0_6px_0_#2563eb]"
+                className={`w-full bg-white border-4 border-black p-4 ${curTheme.id === 'popart' ? 'rounded-full' : 'rounded-2xl'} text-2xl font-black text-black outline-none uppercase text-center tracking-[0.3em] placeholder:tracking-normal placeholder-zinc-400 shadow-[0_4px_0_#000] focus:shadow-[0_6px_0_#2563eb]`}
               />
               <input
                 value={playerNameInput}
                 onChange={(e) => setPlayerNameInput(e.target.value)}
                 placeholder={t.yourNamePlaceholder}
-                className="w-full bg-white border-4 border-black p-4 rounded-2xl text-2xl font-black text-black placeholder-zinc-400 shadow-[0_4px_0_#000] focus:shadow-[0_6px_0_#2563eb] outline-none"
+                className={`w-full bg-white border-4 border-black p-4 ${curTheme.id === 'popart' ? 'rounded-full text-center' : 'rounded-2xl'} text-2xl font-black text-black placeholder-zinc-400 shadow-[0_4px_0_#000] focus:shadow-[0_6px_0_#2563eb] outline-none`}
               />
               {erro && <p className="text-red-300 font-black text-sm text-center bg-black/40 p-2 rounded-xl border border-red-500">{erro}</p>}
               <Botao theme={theme} onClick={entrarSala} disabled={entrando || !playerNameInput.trim() || !roomIdInput.trim()}>
@@ -603,7 +629,7 @@ const App: React.FC = () => {
         <div className="text-center space-y-1">
           <p className="text-xs font-black text-amber-300 uppercase tracking-widest">{t.roomCodeLabel}</p>
           <div className="inline-block bg-black/60 border-4 border-amber-400 px-6 py-2 rounded-3xl shadow-xl">
-            <h1 className="text-6xl font-black text-white text-comic tracking-[0.25em]">{roomState.roomId}</h1>
+            <h1 className="text-6xl font-black text-white title-crisp tracking-[0.25em]">{roomState.roomId}</h1>
           </div>
         </div>
 
@@ -692,7 +718,7 @@ const App: React.FC = () => {
           <span className="bg-amber-400 text-black border-2 border-black font-black text-xs px-3 py-1 rounded-full uppercase tracking-widest animate-bounce">
             ⚡ {lang === 'pt' ? 'RELÂMPAGO' : 'FLASH JOKER'}
           </span>
-          <p className="text-4xl font-black text-white text-comic uppercase leading-tight">
+          <p className="text-4xl font-black text-white title-crisp uppercase leading-tight">
             {t.wildcardTitle}
           </p>
           <p className="text-amber-300 font-bold text-xs uppercase tracking-wider">
@@ -701,7 +727,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="bg-black/60 border-4 border-white px-8 py-2 rounded-3xl">
-          <div className={`text-5xl font-black text-comic ${coringaRush.segundos <= 2 ? 'text-red-500 animate-urgent' : 'text-amber-300'}`}>
+          <div className={`text-5xl font-black ${coringaRush.segundos <= 2 ? 'text-red-500 animate-urgent' : 'text-amber-300'}`}>
             {coringaRush.segundos}s
           </div>
         </div>
@@ -736,7 +762,7 @@ const App: React.FC = () => {
       >
         {renderTopBar()}
         <div className="space-y-1">
-          <p className="text-4xl font-black text-white text-comic uppercase leading-tight">
+          <p className="text-4xl font-black text-white title-crisp uppercase leading-tight">
             {revealPayload.mensagem}
           </p>
           <p className="text-amber-300 font-black uppercase text-sm tracking-wider">
@@ -767,7 +793,7 @@ const App: React.FC = () => {
         style={curTheme.bgInlineStyle}
       >
         <div className="space-y-1">
-          <h2 className="text-7xl font-black uppercase tracking-tighter text-comic text-white">{t.gameOverTitle}</h2>
+          <h2 className="text-6xl font-black uppercase tracking-tight title-crisp text-white">{t.gameOverTitle}</h2>
           <p className="text-xl font-black uppercase tracking-widest text-amber-300">{t.gameOverSubtitle}</p>
         </div>
 
@@ -807,19 +833,19 @@ const App: React.FC = () => {
         {souAnfitriao ? (
           <div className="flex-1 flex flex-col justify-between py-2 space-y-4">
             <div className="space-y-1 text-center">
-              <h2 className="text-3xl font-black text-white text-comic uppercase">
+              <h2 className="text-3xl font-black text-white title-crisp uppercase">
                 {t.yourTurn.replace('{name}', meuNome || '')}
               </h2>
-              <p className="text-amber-300 font-bold uppercase text-xs tracking-wider">
+              <p className={curTheme.subtitleClass}>
                 {t.promptDrawnSubtitle}
               </p>
             </div>
 
-            <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg rotate-[-0.5deg] space-y-3 text-center my-auto">
-              <span className="inline-block bg-black text-white text-[10px] font-black uppercase px-3 py-1 rounded-full tracking-widest">
+            <div className={`${curTheme.cardPromptClass} space-y-3 text-center my-auto`}>
+              <span className="inline-block bg-[#003388] text-white text-[10px] font-black uppercase px-3 py-1 rounded-full tracking-widest">
                 {t.roundCardLabel} ({roomState.currentPrompt?.slots || 1} {t.spacesLabel})
               </span>
-              <p className="text-2xl text-black font-black leading-snug">
+              <p className="text-2xl font-black leading-snug">
                 {roomState.currentPrompt?.text || '...'}
               </p>
             </div>
@@ -923,31 +949,37 @@ const App: React.FC = () => {
             {roomState.yourHand.map((carta, idx) => {
               const selectedIndex = handSelection.indexOf(idx);
               const selecionada = selectedIndex !== -1;
+              const isPop = curTheme.id === 'popart';
               return (
-                <button
-                  key={idx}
-                  onClick={() =>
-                    setHandSelection((prev) => {
-                      if (prev.includes(idx)) return prev.filter((i) => i !== idx);
-                      if (prev.length >= slots) return prev;
-                      return [...prev, idx];
-                    })
-                  }
-                  className={`w-full text-left p-4 rounded-2xl font-black text-base leading-snug transition-all transform select-none ${
-                    selecionada
-                      ? 'bg-amber-100 border-4 border-amber-500 ring-4 ring-amber-300/80 -translate-y-1 shadow-[0_8px_0_#000] text-black'
-                      : 'bg-white border-3 border-black card-shadow hover:-translate-y-0.5 active:translate-y-1 text-black'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span>{carta}</span>
-                    {selecionada && (
-                      <span className="bg-amber-400 text-black border-2 border-black text-[10px] font-black px-2 py-0.5 rounded-lg uppercase flex-shrink-0">
-                        {slots > 1 ? `${selectedIndex + 1}º` : '✔'}
-                      </span>
-                    )}
-                  </div>
-                </button>
+                <div key={idx} className="relative flex items-center justify-center my-1 w-full">
+                  {isPop && <div className="absolute left-0 right-0 h-0.5 bg-white/30 pointer-events-none" />}
+                  <button
+                    onClick={() =>
+                      setHandSelection((prev) => {
+                        if (prev.includes(idx)) return prev.filter((i) => i !== idx);
+                        if (prev.length >= slots) return prev;
+                        return [...prev, idx];
+                      })
+                    }
+                    className={curTheme.cardOptionClass(selecionada)}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        {isPop && (
+                          <span className="font-black text-[#003388] bg-sky-100 px-2.5 py-0.5 rounded-full text-sm">
+                            {String.fromCharCode(65 + idx)}:
+                          </span>
+                        )}
+                        <span className={isPop ? 'text-[#003388] font-black' : 'text-black font-black'}>{carta}</span>
+                      </div>
+                      {selecionada && (
+                        <span className="bg-amber-400 text-black border-2 border-black text-[10px] font-black px-2 py-0.5 rounded-lg uppercase flex-shrink-0">
+                          {slots > 1 ? `${selectedIndex + 1}º` : '✔'}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -1002,11 +1034,11 @@ const App: React.FC = () => {
         </div>
 
         {readingCard && (
-          <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg rotate-1">
-            <span className="inline-block bg-black text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-3 tracking-widest">
+          <div className={`${curTheme.cardPromptClass} rotate-1 text-center`}>
+            <span className="inline-block bg-[#003388] text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-3 tracking-widest">
               {lang === 'pt' ? 'LEIA COM ENTUSIASMO 🗣️' : 'READ WITH ENTHUSIASM 🗣️'}
             </span>
-            <p className="text-2xl leading-relaxed text-black font-black">
+            <p className="text-2xl leading-relaxed font-black">
               {readingCard.texts.join('  •  ')}
             </p>
           </div>
@@ -1022,7 +1054,7 @@ const App: React.FC = () => {
 
         {!souAnfitriao && askingVote && !meuVotoEnviado && (
           <div className="flex-1 flex flex-col justify-center items-center space-y-6">
-            <div className="speech-bubble rounded-3xl p-6 max-w-sm text-center">
+            <div className="bg-white border-4 border-black rounded-3xl p-6 max-w-sm text-center shadow-[0_8px_0_#000]">
               <p className="text-2xl font-black uppercase text-black">
                 {t.askVoteTitle}
               </p>
@@ -1081,14 +1113,14 @@ const App: React.FC = () => {
       >
         {renderTopBar()}
         <div className="text-center space-y-1">
-          <h2 className="text-3xl font-black text-white text-comic uppercase">{t.pickWinnerTitle}</h2>
+          <h2 className="text-3xl font-black text-white title-crisp uppercase">{t.pickWinnerTitle}</h2>
           <p className="text-amber-300 font-bold uppercase text-xs">{t.pickWinnerSubtitle}</p>
         </div>
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
           {(pickingSubmissions || []).map((s, i) => (
             <div
               key={s.submissionId}
-              className={`bg-white border-4 border-black rounded-3xl p-5 card-shadow transition-transform ${
+              className={`bg-white border-4 border-black ${curTheme.id === 'popart' ? 'rounded-[2rem]' : 'rounded-3xl'} p-5 card-shadow transition-transform ${
                 i % 2 === 0 ? '-rotate-0.5' : 'rotate-0.5'
               }`}
             >
