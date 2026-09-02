@@ -1,0 +1,31 @@
+# Dependências e caches
+node_modules/
+node_modules*/
+*/node_modules/
+*/node_modules*/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Builds
+dist/
+dist*/
+*/dist/
+*/dist*/
+build/
+*/build/
+
+# Variáveis de ambiente locais
+.env
+.env.local
+.env.*.local
+*/.env.local
+
+# Backups e temporários
+*.bak
+_descartado*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
