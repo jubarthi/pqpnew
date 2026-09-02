@@ -445,7 +445,9 @@ io.on('connection', (socket) => {
       getActiveTunnelUrl() ||
       (await Promise.race([tunnelPromise, new Promise<null>((r) => setTimeout(() => r(null), 4000))]));
 
-    const validPublicUrl = PUBLIC_APP_URL && !PUBLIC_APP_URL.includes('localhost') ? PUBLIC_APP_URL : null;
+    const isRender = !!process.env.RENDER || !!process.env.RENDER_SERVICE_ID;
+    const defaultPublicUrl = isRender ? 'https://pqpnew.vercel.app' : null;
+    const validPublicUrl = PUBLIC_APP_URL && !PUBLIC_APP_URL.includes('localhost') ? PUBLIC_APP_URL : defaultPublicUrl;
     const baseUrl = validPublicUrl || tunnelUrl || `http://${localIp}:5175`;
 
     const joinUrl = `${baseUrl}/entrar/${room.id}`;

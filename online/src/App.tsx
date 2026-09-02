@@ -6,7 +6,11 @@ import { carregarConfiguracoes } from './content';
 
 const SERVER_URL =
   (import.meta.env.VITE_SERVER_URL as string) ||
-  (typeof window !== 'undefined' ? window.location.origin : '');
+  (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+    ? 'https://pqpnew.onrender.com'
+    : typeof window !== 'undefined'
+    ? window.location.origin
+    : '');
 const SESSION_KEY = 'pqp_online_session';
 
 interface RevealPayload {
