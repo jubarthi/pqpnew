@@ -23,6 +23,11 @@ export interface CurrentPrompt {
   slots: number;
 }
 
+export interface PickingSubmission {
+  submissionId: string;
+  texts: string[];
+}
+
 export interface RoomState {
   roomId: string;
   phase: RoomPhase;
@@ -32,6 +37,7 @@ export interface RoomState {
   yourHand: string[];
   isWildcardHolder: boolean;
   winningScore: number;
+  pickingSubmissions?: PickingSubmission[];
 }
 
 export interface Som {

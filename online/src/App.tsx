@@ -1196,7 +1196,7 @@ const App: React.FC = () => {
           <p className="text-amber-300 font-bold uppercase text-xs">{t.pickWinnerSubtitle}</p>
         </div>
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {(pickingSubmissions || []).map((s, i) => (
+          {((pickingSubmissions && pickingSubmissions.length > 0 ? pickingSubmissions : roomState.pickingSubmissions) || []).map((s, i) => (
             <div
               key={s.submissionId}
               className={`bg-white border-4 border-black ${curTheme.id === 'popart' ? 'rounded-[2rem]' : 'rounded-3xl'} p-5 card-shadow transition-transform ${

@@ -102,6 +102,11 @@ function emitToPlayer(room: Room, playerId: string, event: string, payload: unkn
 }
 
 function broadcastState(room: Room) {
+  const pickingSubmissions =
+    room.phase === 'JUDGMENT_PICKING' || room.phase === 'JUDGMENT_READING'
+      ? room.shuffledSubmissions.map((s) => ({ submissionId: s.playerId, texts: s.texts }))
+      : undefined;
+
   for (const p of room.players) {
     if (!p.socketId) continue;
     io.to(p.socketId).emit('room:state_update', {
@@ -115,6 +120,7 @@ function broadcastState(room: Room) {
       winningScore: WINNING_SCORE,
       lang: room.lang,
       isMuted: room.isMuted,
+      pickingSubmissions,
     });
   }
 }
@@ -231,6 +237,11 @@ function fecharRespostas(room: Room) {
   room.answerTimer = null;
 
   room.shuffledSubmissions = [...room.submissions].sort(() => Math.random() - 0.5);
+  if (room.shuffledSubmissions.length === 0) {
+    prepararPerguntaDaRodada(room);
+    return;
+  }
+
   room.phase = 'JUDGMENT_READING';
   room.readIndex = 0;
   room.readOutcome = 'reading';
@@ -430,6 +441,7 @@ async function proximaRodada(room: Room) {
   room.wildcardHolderId = null;
   room.wildcardOfferedTo = [];
   room.wildcardPendingId = null;
+  room.roundNumber = (room.roundNumber || 1) + 1;
   await prepararPerguntaDaRodada(room);
 }
 
@@ -501,6 +513,7 @@ io.on('connection', (socket) => {
     if (!room) return ack?.({ erro: 'Sala não encontrada.' });
     if (!ehHostValido(room, playerId, socket.id)) return ack?.({ erro: 'Só o anfitrião pode iniciar a partida.' });
     if (!podeComecar(room)) return ack?.({ erro: 'Precisa de pelo menos 3 pessoas na sala.' });
+    room.roundNumber = 1;
     ack?.({ ok: true });
     await prepararPerguntaDaRodada(room);
   });
