@@ -30,45 +30,9 @@ export function criarSala(hostName: string): { room: Room; hostPlayerId: string 
     isBot: false,
   };
 
-  const bots: Player[] = [
-    {
-      id: randomUUID(),
-      socketId: null,
-      name: 'Juliana',
-      score: 0,
-      penalties: 0,
-      isHost: false,
-      hand: [],
-      connected: true,
-      isBot: true,
-    },
-    {
-      id: randomUUID(),
-      socketId: null,
-      name: 'Patricia',
-      score: 0,
-      penalties: 0,
-      isHost: false,
-      hand: [],
-      connected: true,
-      isBot: true,
-    },
-    {
-      id: randomUUID(),
-      socketId: null,
-      name: 'Bruno',
-      score: 0,
-      penalties: 0,
-      isHost: false,
-      hand: [],
-      connected: true,
-      isBot: true,
-    },
-  ];
-
   const room: Room = {
     id,
-    players: [host, ...bots],
+    players: [host],
     hostId: hostPlayerId,
     phase: 'LOBBY',
     currentPrompt: null,
