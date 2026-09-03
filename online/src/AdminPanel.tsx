@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
+import mammoth from 'mammoth';
 import { soundEngine } from './soundEngine';
 
 interface AdminUser {
@@ -57,9 +59,28 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
   const [loading, setLoading] = useState(false);
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<'perguntas' | 'respostas' | 'audios' | 'configs'>('perguntas');
+  const [activeTab, setActiveTab] = useState<'perguntas' | 'respostas' | 'upload' | 'audios' | 'configs'>('perguntas');
   const [langFilter, setLangFilter] = useState<'pt' | 'en'>('pt');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Upload Tab States
+  const [uploadLang, setUploadLang] = useState<'pt' | 'en'>('pt');
+  const [uploadFileP, setUploadFileP] = useState<File | null>(null);
+  const [uploadTextP, setUploadTextP] = useState('');
+  const [parsedItensP, setParsedItensP] = useState<string[]>([]);
+  const [parsingP, setParsingP] = useState(false);
+
+  const [uploadFileR, setUploadFileR] = useState<File | null>(null);
+  const [uploadTextR, setUploadTextR] = useState('');
+  const [parsedItensR, setParsedItensR] = useState<string[]>([]);
+  const [parsingR, setParsingR] = useState(false);
+
+  const [confirmUploadModal, setConfirmUploadModal] = useState<{
+    tipo: 'perguntas' | 'respostas';
+    itens: string[];
+    lang: 'pt' | 'en';
+  } | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Data
   const [perguntas, setPerguntas] = useState<Pergunta[]>([]);
@@ -300,7 +321,181 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
 
   const mostrarStatus = (msg: string) => {
     setStatusMsg(msg);
-    setTimeout(() => setStatusMsg(''), 3500);
+    setTimeout(() => setStatusMsg(''), 4500);
+  };
+
+  // ----------------------------------------------------
+  // Funções de Extração e Upload em Lote (Excel, Word, Texto)
+  // ----------------------------------------------------
+  const extrairLinhasDeArquivo = async (file: File): Promise<string[]> => {
+    const nome = file.name.toLowerCase();
+
+    // 1. Planilha Excel (.xlsx, .xls)
+    if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const lines: string[] = [];
+      for (const sheetName of wb.SheetNames) {
+        const sheet = wb.Sheets[sheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        for (const row of rows) {
+          if (Array.isArray(row)) {
+            for (const cell of row) {
+              if (cell !== undefined && cell !== null) {
+                const val = String(cell).trim();
+                if (val && !lines.includes(val)) lines.push(val);
+              }
+            }
+          }
+        }
+      }
+      return lines;
+    }
+
+    // 2. Documento Word (.docx)
+    if (nome.endsWith('.docx')) {
+      const buffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+      return result.value
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+    }
+
+    // 3. Arquivo de Texto / Bloco de Notas (.txt, .csv, .tsv, .doc, .md)
+    const text = await file.text();
+    return text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+  };
+
+  const handleArquivoPerguntas = async (file: File | null) => {
+    setUploadFileP(file);
+    if (!file) {
+      const lines = uploadTextP
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      setParsedItensP(lines);
+      return;
+    }
+    setParsingP(true);
+    try {
+      const lines = await extrairLinhasDeArquivo(file);
+      setParsedItensP(lines);
+      mostrarStatus(`📄 ${lines.length} perguntas identificadas no arquivo '${file.name}'!`);
+    } catch (err: any) {
+      mostrarStatus(`❌ Erro ao ler arquivo: ${err.message || 'Formato não reconhecido'}`);
+    } finally {
+      setParsingP(false);
+    }
+  };
+
+  const handleArquivoRespostas = async (file: File | null) => {
+    setUploadFileR(file);
+    if (!file) {
+      const lines = uploadTextR
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      setParsedItensR(lines);
+      return;
+    }
+    setParsingR(true);
+    try {
+      const lines = await extrairLinhasDeArquivo(file);
+      setParsedItensR(lines);
+      mostrarStatus(`📄 ${lines.length} respostas identificadas no arquivo '${file.name}'!`);
+    } catch (err: any) {
+      mostrarStatus(`❌ Erro ao ler arquivo: ${err.message || 'Formato não reconhecido'}`);
+    } finally {
+      setParsingR(false);
+    }
+  };
+
+  const dispararUploadPerguntas = () => {
+    let itens = [...parsedItensP];
+    if (itens.length === 0 && uploadTextP.trim()) {
+      itens = uploadTextP
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+    }
+    if (itens.length === 0) {
+      alert('Por favor, selecione um arquivo de perguntas ou cole os textos no campo abaixo.');
+      return;
+    }
+    setConfirmUploadModal({
+      tipo: 'perguntas',
+      itens,
+      lang: uploadLang,
+    });
+  };
+
+  const dispararUploadRespostas = () => {
+    let itens = [...parsedItensR];
+    if (itens.length === 0 && uploadTextR.trim()) {
+      itens = uploadTextR
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+    }
+    if (itens.length === 0) {
+      alert('Por favor, selecione um arquivo de respostas ou cole os textos no campo abaixo.');
+      return;
+    }
+    setConfirmUploadModal({
+      tipo: 'respostas',
+      itens,
+      lang: uploadLang,
+    });
+  };
+
+  const executarBulkUpload = async (modo: 'manter' | 'renovar') => {
+    if (!confirmUploadModal || !token) return;
+    setUploading(true);
+    const endpoint = confirmUploadModal.tipo === 'perguntas' ? 'bulk-perguntas' : 'bulk-respostas';
+
+    try {
+      const res = await fetch(`${apiUrl}/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          itens: confirmUploadModal.itens,
+          lang: confirmUploadModal.lang,
+          modo,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.erro || 'Erro ao processar envio.');
+        setUploading(false);
+        return;
+      }
+
+      mostrarStatus(
+        `🎉 ${data.totalProcessadas} ${confirmUploadModal.tipo} processadas (${modo.toUpperCase()})! Estoque total: ${data.totalEstoque}`
+      );
+      setConfirmUploadModal(null);
+      if (confirmUploadModal.tipo === 'perguntas') {
+        setUploadFileP(null);
+        setUploadTextP('');
+        setParsedItensP([]);
+      } else {
+        setUploadFileR(null);
+        setUploadTextR('');
+        setParsedItensR([]);
+      }
+      carregarDados(token);
+    } catch {
+      alert('Erro de conexão com o servidor ao processar envio.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   // ----------------------------------------------------
@@ -432,10 +627,10 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
       {/* Conteúdo Principal */}
       <div className="flex-1 max-w-5xl w-full mx-auto p-6 space-y-6">
         {/* Abas de Navegação */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-zinc-900 p-1.5 rounded-2xl border border-zinc-800">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-zinc-900 p-1.5 rounded-2xl border border-zinc-800">
           <button
             onClick={() => setActiveTab('perguntas')}
-            className={`py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            className={`py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
               activeTab === 'perguntas'
                 ? 'bg-amber-400 text-black shadow-md'
                 : 'text-zinc-400 hover:text-white'
@@ -445,7 +640,7 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
           </button>
           <button
             onClick={() => setActiveTab('respostas')}
-            className={`py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            className={`py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
               activeTab === 'respostas'
                 ? 'bg-amber-400 text-black shadow-md'
                 : 'text-zinc-400 hover:text-white'
@@ -454,24 +649,34 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
             <span>🃏</span> Respostas ({respostas.length})
           </button>
           <button
+            onClick={() => setActiveTab('upload')}
+            className={`py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'upload'
+                ? 'bg-amber-400 text-black shadow-md'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <span>📤</span> UPLOAD
+          </button>
+          <button
             onClick={() => setActiveTab('audios')}
-            className={`py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            className={`py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
               activeTab === 'audios'
                 ? 'bg-amber-400 text-black shadow-md'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
-            <span>🔊</span> Efeitos Sonoros
+            <span>🔊</span> Áudios
           </button>
           <button
             onClick={() => setActiveTab('configs')}
-            className={`py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            className={`py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
               activeTab === 'configs'
                 ? 'bg-amber-400 text-black shadow-md'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
-            <span>⚙️</span> Configurações
+            <span>⚙️</span> Configs
           </button>
         </div>
 
@@ -639,6 +844,225 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------ */}
+        {/* TAB: UPLOAD EM LOTE */}
+        {/* ------------------------------------------------ */}
+        {activeTab === 'upload' && (
+          <div className="space-y-6">
+            <div className="bg-zinc-900 p-6 rounded-3xl border border-zinc-800 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-zinc-800">
+                <div>
+                  <h2 className="text-xl font-black uppercase text-white flex items-center gap-2">
+                    <span>📤</span> Central de Upload em Lote (1500+ Itens)
+                  </h2>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Importe arquivos do Excel (.xlsx, .xls), Word (.docx, .doc), Bloco de Notas (.txt, .csv, .md) ou cole diretamente o texto.
+                  </p>
+                </div>
+
+                {/* Seletor de Idioma para o Upload */}
+                <div className="flex items-center gap-2 bg-zinc-950 p-1.5 rounded-xl border border-zinc-800">
+                  <span className="text-[11px] font-bold text-zinc-400 px-2 uppercase">Idioma do Upload:</span>
+                  <button
+                    onClick={() => setUploadLang('pt')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
+                      uploadLang === 'pt' ? 'bg-amber-400 text-black' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    🇧🇷 PT
+                  </button>
+                  <button
+                    onClick={() => setUploadLang('en')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
+                      uploadLang === 'en' ? 'bg-amber-400 text-black' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    🇺🇸 EN
+                  </button>
+                </div>
+              </div>
+
+              {/* Dica sobre o formato underline */}
+              <div className="bg-amber-400/10 border border-amber-400/30 p-3.5 rounded-2xl flex items-center gap-3">
+                <span className="text-2xl">💡</span>
+                <p className="text-xs text-amber-200 leading-relaxed font-bold">
+                  <strong>Dica de Formatação:</strong> Para as perguntas, use sublinhado <code className="bg-black/50 px-1.5 py-0.5 rounded text-amber-300 font-mono">_</code> ou <code className="bg-black/50 px-1.5 py-0.5 rounded text-amber-300 font-mono">___</code> no local onde os jogadores devem preencher com suas respostas. O sistema detecta e converte automaticamente!
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                {/* 1. SEÇÃO DE PERGUNTAS */}
+                <div className="bg-zinc-950 p-5 rounded-3xl border-2 border-zinc-800 space-y-4 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-black uppercase text-amber-300 flex items-center gap-2">
+                        <span>📝</span> Enviar Perguntas
+                      </h3>
+                      {parsedItensP.length > 0 && (
+                        <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-black px-2.5 py-1 rounded-full animate-pulse">
+                          {parsedItensP.length} detectadas
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Upload de Arquivo */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase text-zinc-400">1. Selecionar Arquivo (Excel, Word ou Bloco de Notas)</label>
+                      <div className="relative border-2 border-dashed border-zinc-700 hover:border-amber-400 rounded-2xl p-4 text-center cursor-pointer transition-all bg-zinc-900/50">
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,.docx,.doc,.txt,.csv,.tsv,.md"
+                          onChange={(e) => handleArquivoPerguntas(e.target.files?.[0] || null)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        {uploadFileP ? (
+                          <div className="space-y-1">
+                            <span className="text-2xl">📄</span>
+                            <p className="text-xs font-black text-amber-300 truncate max-w-xs mx-auto">{uploadFileP.name}</p>
+                            <p className="text-[10px] text-zinc-400">{(uploadFileP.size / 1024).toFixed(1)} KB • Clique para trocar</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <span className="text-2xl">📂</span>
+                            <p className="text-xs font-black text-zinc-300">Arraste ou clique para escolher</p>
+                            <p className="text-[10px] text-zinc-500">.XLSX, .XLS, .DOCX, .DOC, .TXT, .CSV</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Ou Cole o Texto */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase text-zinc-400">2. Ou cole as perguntas aqui (uma por linha)</label>
+                      <textarea
+                        rows={4}
+                        value={uploadTextP}
+                        onChange={(e) => {
+                          setUploadTextP(e.target.value);
+                          if (!uploadFileP) {
+                            const lines = e.target.value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+                            setParsedItensP(lines);
+                          }
+                        }}
+                        placeholder="Exemplo:\nEu nunca tive coragem de contar que eu ___.\nO maior segredo do meu chefe é ___.\nQuando ninguém está olhando, eu gosto de ___."
+                        className="w-full bg-zinc-900 border border-zinc-700 p-3 rounded-2xl text-xs font-mono text-zinc-200 outline-none focus:border-amber-400 placeholder:text-zinc-600"
+                      />
+                    </div>
+
+                    {/* Prévia das primeiras perguntas */}
+                    {parsedItensP.length > 0 && (
+                      <div className="bg-zinc-900 p-3 rounded-2xl border border-zinc-800 space-y-1.5">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-zinc-400">
+                          Prévia (primeiras {Math.min(3, parsedItensP.length)} de {parsedItensP.length}):
+                        </p>
+                        <div className="space-y-1 text-xs text-zinc-300 font-bold">
+                          {parsedItensP.slice(0, 3).map((item, i) => (
+                            <div key={i} className="truncate bg-zinc-950 p-1.5 rounded-lg border border-zinc-800">
+                              <span className="text-amber-400 mr-1.5">#{i + 1}</span> {item.replace(/_+/g, '___')}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={dispararUploadPerguntas}
+                    disabled={parsingP || (parsedItensP.length === 0 && !uploadTextP.trim())}
+                    className="btn-3d w-full mt-3 bg-amber-400 hover:bg-amber-300 text-black border-2 border-black py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    {parsingP ? 'LENDO ARQUIVO...' : `🚀 ENVIAR PERGUNTAS (${parsedItensP.length > 0 ? parsedItensP.length : '0'})`}
+                  </button>
+                </div>
+
+                {/* 2. SEÇÃO DE RESPOSTAS */}
+                <div className="bg-zinc-950 p-5 rounded-3xl border-2 border-zinc-800 space-y-4 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-black uppercase text-amber-300 flex items-center gap-2">
+                        <span>🃏</span> Enviar Respostas
+                      </h3>
+                      {parsedItensR.length > 0 && (
+                        <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-black px-2.5 py-1 rounded-full animate-pulse">
+                          {parsedItensR.length} detectadas
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Upload de Arquivo */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase text-zinc-400">1. Selecionar Arquivo (Excel, Word ou Bloco de Notas)</label>
+                      <div className="relative border-2 border-dashed border-zinc-700 hover:border-amber-400 rounded-2xl p-4 text-center cursor-pointer transition-all bg-zinc-900/50">
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,.docx,.doc,.txt,.csv,.tsv,.md"
+                          onChange={(e) => handleArquivoRespostas(e.target.files?.[0] || null)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        {uploadFileR ? (
+                          <div className="space-y-1">
+                            <span className="text-2xl">📄</span>
+                            <p className="text-xs font-black text-amber-300 truncate max-w-xs mx-auto">{uploadFileR.name}</p>
+                            <p className="text-[10px] text-zinc-400">{(uploadFileR.size / 1024).toFixed(1)} KB • Clique para trocar</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <span className="text-2xl">📂</span>
+                            <p className="text-xs font-black text-zinc-300">Arraste ou clique para escolher</p>
+                            <p className="text-[10px] text-zinc-500">.XLSX, .XLS, .DOCX, .DOC, .TXT, .CSV</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Ou Cole o Texto */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase text-zinc-400">2. Ou cole as respostas aqui (uma por linha)</label>
+                      <textarea
+                        rows={4}
+                        value={uploadTextR}
+                        onChange={(e) => {
+                          setUploadTextR(e.target.value);
+                          if (!uploadFileR) {
+                            const lines = e.target.value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+                            setParsedItensR(lines);
+                          }
+                        }}
+                        placeholder="Exemplo:\nUm boleto vencido há 3 meses\nFingir que estava dormindo\nComer coxinha com guardanapo\nUma mensagem comprometedora no WhatsApp"
+                        className="w-full bg-zinc-900 border border-zinc-700 p-3 rounded-2xl text-xs font-mono text-zinc-200 outline-none focus:border-amber-400 placeholder:text-zinc-600"
+                      />
+                    </div>
+
+                    {/* Prévia das primeiras respostas */}
+                    {parsedItensR.length > 0 && (
+                      <div className="bg-zinc-900 p-3 rounded-2xl border border-zinc-800 space-y-1.5">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-zinc-400">
+                          Prévia (primeiras {Math.min(3, parsedItensR.length)} de {parsedItensR.length}):
+                        </p>
+                        <div className="space-y-1 text-xs text-zinc-300 font-bold">
+                          {parsedItensR.slice(0, 3).map((item, i) => (
+                            <div key={i} className="truncate bg-zinc-950 p-1.5 rounded-lg border border-zinc-800">
+                              <span className="text-amber-400 mr-1.5">#{i + 1}</span> {item}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={dispararUploadRespostas}
+                    disabled={parsingR || (parsedItensR.length === 0 && !uploadTextR.trim())}
+                    className="btn-3d w-full mt-3 bg-amber-400 hover:bg-amber-300 text-black border-2 border-black py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    {parsingR ? 'LENDO ARQUIVO...' : `🚀 ENVIAR RESPOSTAS (${parsedItensR.length > 0 ? parsedItensR.length : '0'})`}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -864,6 +1288,77 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
                 className="bg-amber-400 hover:bg-amber-300 text-black font-black text-xs uppercase px-6 py-2.5 rounded-xl border border-black shadow-md"
               >
                 Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------ */}
+      {/* MODAL DE CONFIRMAÇÃO DE UPLOAD: MANTER vs RENOVAR */}
+      {/* ------------------------------------------------ */}
+      {confirmUploadModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 select-none">
+          <div className="bg-zinc-900 border-3 border-zinc-700 w-full max-w-lg p-6 rounded-3xl space-y-5 shadow-2xl text-center animate-bounce-short">
+            <div className="space-y-1">
+              <span className="text-5xl inline-block">📦</span>
+              <h3 className="text-2xl font-black uppercase text-white">Como deseja processar o estoque?</h3>
+              <p className="text-xs text-zinc-400 font-bold uppercase tracking-wider">
+                Você está enviando <strong className="text-amber-300">{confirmUploadModal.itens.length} {confirmUploadModal.tipo}</strong> ({confirmUploadModal.lang.toUpperCase()}).
+              </p>
+            </div>
+
+            <div className="space-y-3 text-left">
+              {/* Opção 1: Manter Estoque */}
+              <button
+                onClick={() => executarBulkUpload('manter')}
+                disabled={uploading}
+                className="w-full bg-zinc-950 hover:bg-zinc-800 border-2 border-emerald-500/80 p-4 rounded-2xl transition-all flex items-start gap-3.5 group cursor-pointer"
+              >
+                <span className="text-2xl bg-emerald-500/20 p-2.5 rounded-xl text-emerald-400">📦</span>
+                <div>
+                  <h4 className="text-base font-black text-emerald-400 uppercase group-hover:text-emerald-300">
+                    1. Manter Estoque (Adicionar Novas)
+                  </h4>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Mantém todas as {confirmUploadModal.tipo} que já estão cadastradas e inclui estas {confirmUploadModal.itens.length} novas (evitando duplicatas exatas).
+                  </p>
+                </div>
+              </button>
+
+              {/* Opção 2: Renovar Estoque */}
+              <button
+                onClick={() => {
+                  if (
+                    confirm(
+                      `ATENÇÃO: Tem certeza que deseja APAGAR todas as ${confirmUploadModal.tipo} atuais e deixar somente as ${confirmUploadModal.itens.length} novas que você está enviando?`
+                    )
+                  ) {
+                    executarBulkUpload('renovar');
+                  }
+                }}
+                disabled={uploading}
+                className="w-full bg-zinc-950 hover:bg-zinc-800 border-2 border-rose-500/80 p-4 rounded-2xl transition-all flex items-start gap-3.5 group cursor-pointer"
+              >
+                <span className="text-2xl bg-rose-500/20 p-2.5 rounded-xl text-rose-400">🔄</span>
+                <div>
+                  <h4 className="text-base font-black text-rose-400 uppercase group-hover:text-rose-300">
+                    2. Renovar Estoque (Substituir Tudo)
+                  </h4>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Apaga todas as {confirmUploadModal.tipo} atuais cadastradas neste idioma e deixa exclusivamente estas {confirmUploadModal.itens.length} que você está enviando agora.
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => setConfirmUploadModal(null)}
+                disabled={uploading}
+                className="px-6 py-2.5 rounded-xl font-black text-xs uppercase text-zinc-400 hover:text-white transition-all"
+              >
+                Cancelar
               </button>
             </div>
           </div>

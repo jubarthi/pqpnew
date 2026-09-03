@@ -26,7 +26,7 @@ async function testGame() {
   await new Promise((resolve, reject) => {
     socketHost.emit('room:create', { hostName: 'Host_Tester' }, (res) => {
       if (res.erro) return reject(new Error(res.erro));
-      roomId = res.room.id;
+      roomId = res.roomId;
       hostId = res.hostPlayerId;
       console.log('✅ Sala criada:', roomId, 'HostId:', hostId);
       resolve();
@@ -37,7 +37,7 @@ async function testGame() {
   await new Promise((resolve, reject) => {
     socketP2.emit('room:join', { roomId, playerName: 'Player_Beta' }, (res) => {
       if (res.erro) return reject(new Error(res.erro));
-      p2Id = res.player.id;
+      p2Id = res.playerId;
       console.log('✅ Player 2 entrou:', p2Id);
       resolve();
     });
@@ -47,7 +47,7 @@ async function testGame() {
   await new Promise((resolve, reject) => {
     socketP3.emit('room:join', { roomId, playerName: 'Player_Gama' }, (res) => {
       if (res.erro) return reject(new Error(res.erro));
-      p3Id = res.player.id;
+      p3Id = res.playerId;
       console.log('✅ Player 3 entrou:', p3Id);
       resolve();
     });

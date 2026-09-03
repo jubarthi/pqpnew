@@ -232,3 +232,118 @@ adminRouter.post('/configs', authMiddleware, (req: Request, res: Response) => {
   saveStore();
   res.json(store.configs);
 });
+
+// 8. Upload em Lote: Perguntas (Manter ou Renovar)
+adminRouter.post('/bulk-perguntas', authMiddleware, (req: Request, res: Response) => {
+  const { itens, lang = 'pt', modo = 'manter' } = req.body || {};
+  if (!Array.isArray(itens) || itens.length === 0) {
+    return res.status(400).json({ erro: 'Nenhuma pergunta enviada na lista.' });
+  }
+
+  const store = loadStore();
+  const targetLang = lang === 'en' ? 'en' : 'pt';
+
+  const jaExistentes = new Set(
+    store.perguntas.filter((p) => p.lang === targetLang).map((p) => p.texto.toLowerCase().trim())
+  );
+  const formatadas: PerguntaItem[] = [];
+
+  for (const raw of itens) {
+    if (typeof raw !== 'string') continue;
+    let texto = raw.trim();
+    if (!texto) continue;
+
+    // Converte underlines simples ou múltiplos para ___
+    texto = texto.replace(/_+/g, '___');
+    const espacos = (texto.match(/_{3,}/g) || []).length || 1;
+
+    if (modo === 'manter' && jaExistentes.has(texto.toLowerCase())) {
+      continue;
+    }
+
+    formatadas.push({
+      id: `p_${targetLang}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      texto,
+      espacos,
+      lang: targetLang,
+      createdAt: Date.now(),
+    });
+    jaExistentes.add(texto.toLowerCase());
+  }
+
+  if (formatadas.length === 0) {
+    return res.status(400).json({ erro: 'Nenhuma pergunta válida (ou todas já existiam no estoque).' });
+  }
+
+  if (modo === 'renovar') {
+    // Apaga perguntas atuais daquele idioma e coloca as novas
+    store.perguntas = store.perguntas.filter((p) => p.lang !== targetLang);
+    store.perguntas.push(...formatadas);
+  } else {
+    // Manter: adiciona as novas
+    store.perguntas.unshift(...formatadas);
+  }
+
+  saveStore();
+  res.json({
+    ok: true,
+    totalProcessadas: formatadas.length,
+    modo,
+    totalEstoque: store.perguntas.filter((p) => p.lang === targetLang).length,
+  });
+});
+
+// 9. Upload em Lote: Respostas (Manter ou Renovar)
+adminRouter.post('/bulk-respostas', authMiddleware, (req: Request, res: Response) => {
+  const { itens, lang = 'pt', modo = 'manter' } = req.body || {};
+  if (!Array.isArray(itens) || itens.length === 0) {
+    return res.status(400).json({ erro: 'Nenhuma resposta enviada na lista.' });
+  }
+
+  const store = loadStore();
+  const targetLang = lang === 'en' ? 'en' : 'pt';
+
+  const jaExistentes = new Set(
+    store.respostas.filter((r) => r.lang === targetLang).map((r) => r.texto.toLowerCase().trim())
+  );
+  const formatadas: RespostaItem[] = [];
+
+  for (const raw of itens) {
+    if (typeof raw !== 'string') continue;
+    const texto = raw.trim();
+    if (!texto) continue;
+
+    if (modo === 'manter' && jaExistentes.has(texto.toLowerCase())) {
+      continue;
+    }
+
+    formatadas.push({
+      id: `r_${targetLang}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      texto,
+      lang: targetLang,
+      createdAt: Date.now(),
+    });
+    jaExistentes.add(texto.toLowerCase());
+  }
+
+  if (formatadas.length === 0) {
+    return res.status(400).json({ erro: 'Nenhuma resposta válida (ou todas já existiam no estoque).' });
+  }
+
+  if (modo === 'renovar') {
+    // Apaga respostas atuais daquele idioma e coloca as novas
+    store.respostas = store.respostas.filter((r) => r.lang !== targetLang);
+    store.respostas.push(...formatadas);
+  } else {
+    // Manter: adiciona as novas
+    store.respostas.unshift(...formatadas);
+  }
+
+  saveStore();
+  res.json({
+    ok: true,
+    totalProcessadas: formatadas.length,
+    modo,
+    totalEstoque: store.respostas.filter((r) => r.lang === targetLang).length,
+  });
+});
