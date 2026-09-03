@@ -96,7 +96,7 @@ export const Tutorial: React.FC<TutorialProps> = ({
                 1. ABRIR SALA & CONECTAR AMIGOS
               </h2>
               <p className="text-xs text-amber-300 font-bold uppercase tracking-wider">
-                O anfitrião cria a sala na TV ou no celular
+                O Anfitrião abre a sala no seu próprio celular
               </p>
             </div>
 
@@ -113,13 +113,13 @@ export const Tutorial: React.FC<TutorialProps> = ({
               <div className="bg-amber-100 border-2 border-black rounded-2xl p-3 flex flex-col items-center justify-center space-y-1">
                 <span className="text-4xl">📱</span>
                 <p className="text-[11px] font-black uppercase text-amber-900">
-                  Aponte a câmera do celular para entrar
+                  Amigos apontam a câmera pro celular do Anfitrião
                 </p>
               </div>
 
               {/* Lista de Jogadores Conectados */}
               <div className="space-y-1 text-left">
-                <p className="text-[10px] font-black uppercase text-zinc-500">Mesa Conectada (Tempo Real):</p>
+                <p className="text-[10px] font-black uppercase text-zinc-500">Mesa Conectada (Tempo Real no Celular):</p>
                 <div className="grid grid-cols-2 gap-1.5 text-xs font-bold">
                   <div className="bg-zinc-50 border border-black p-1.5 rounded-xl flex items-center justify-between">
                     <span>👑 Você (Host)</span>
@@ -142,7 +142,7 @@ export const Tutorial: React.FC<TutorialProps> = ({
             </div>
 
             <p className="text-xs font-bold text-white/90 leading-relaxed max-w-sm mx-auto">
-              Cada amigo aponta a câmera, digita seu apelido e entra na hora. Com 3 ou mais na mesa, o anfitrião clica em <strong>INICIAR PARTIDA</strong>!
+              Cada amigo aponta o celular pro aparelho do Anfitrião (ou digita o código), coloca seu apelido e entra na hora! Com 3 ou mais na mesa, o Anfitrião clica em <strong>INICIAR PARTIDA</strong>!
             </p>
           </div>
         )}
