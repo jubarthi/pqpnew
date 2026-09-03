@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { RoomState } from './types';
+import type { RoomState, PublicPlayer } from './types';
 import { useSom } from './useSom';
 import { carregarConfiguracoes } from './content';
 import { translations, Language } from './i18n';
@@ -31,6 +31,9 @@ interface RevealPayload {
   subtexto: string;
   frase: { texto: string; respostas: string[] };
   vencedorNome?: string;
+  avaliacaoLeitura?: { leuBem: boolean; votosSim: number; votosNao: number };
+  placar?: PublicPlayer[];
+  winningScore?: number;
 }
 
 interface ChampionPayload {
@@ -134,6 +137,8 @@ const App: React.FC = () => {
   const [pickingSubmissions, setPickingSubmissions] = useState<{ submissionId: string; texts: string[] }[] | null>(null);
   const [revealPayload, setRevealPayload] = useState<RevealPayload | null>(null);
   const [championPayload, setChampionPayload] = useState<ChampionPayload | null>(null);
+  const [mostrarPlacarModal, setMostrarPlacarModal] = useState(false);
+  const [meuVotoLeituraEnviado, setMeuVotoLeituraEnviado] = useState(false);
 
   const [isMuted, setIsMuted] = useState(false);
 
@@ -246,6 +251,12 @@ const App: React.FC = () => {
 
     socket.on('room:state_update', (payload: RoomState & { lang?: Language; isMuted?: boolean }) => {
       setRoomState(payload);
+      if (payload.phase !== 'SUBMIT_ANSWERS') {
+        setMinhaRespostaEnviada(false);
+      }
+      if (payload.phase !== 'READING_EVALUATION') {
+        setMeuVotoLeituraEnviado(false);
+      }
       if (payload.lang && (payload.lang === 'pt' || payload.lang === 'en')) {
         setLang(payload.lang);
       }
@@ -481,19 +492,107 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      {/* Botao de Mudo / Som */}
-      <button
-        type="button"
-        onClick={toggleMute}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs uppercase border-2 border-black shadow-[0_3px_0_#000] active:scale-95 transition-all ${
-          isMuted ? 'bg-red-500 text-white' : 'bg-amber-400 text-black'
-        }`}
-        title={isMuted ? 'Desmutar som do jogo' : 'Mutar som do jogo'}
-      >
-        <span>{isMuted ? '🔇 MUDO' : '🔊 SOM'}</span>
-      </button>
+      <div className="flex items-center gap-2">
+        {/* Botao de Placar Geral */}
+        {roomState && (
+          <button
+            type="button"
+            onClick={() => setMostrarPlacarModal(true)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl font-black text-xs uppercase bg-amber-400 hover:bg-amber-300 text-black border-2 border-black shadow-[0_3px_0_#000] active:scale-95 transition-all"
+            title="Ver placar completo da mesa"
+          >
+            <span>🏆</span>
+            <span className="hidden sm:inline">{t.scoreboardBtn}</span>
+          </button>
+        )}
+
+        {/* Botao de Mudo / Som */}
+        <button
+          type="button"
+          onClick={toggleMute}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs uppercase border-2 border-black shadow-[0_3px_0_#000] active:scale-95 transition-all ${
+            isMuted ? 'bg-red-500 text-white' : 'bg-amber-400 text-black'
+          }`}
+          title={isMuted ? 'Desmutar som do jogo' : 'Mutar som do jogo'}
+        >
+          <span>{isMuted ? '🔇 MUDO' : '🔊 SOM'}</span>
+        </button>
+      </div>
     </div>
   );
+
+  // Modal com o Placar Completo e Quanto Falta para a Vitória
+  const renderPlacarModal = () => {
+    if (!mostrarPlacarModal || !roomState) return null;
+    const meta = roomState.winningScore || 4.0;
+    const ranking = [...roomState.players].sort((a, b) => b.score - a.score);
+
+    return (
+      <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white border-4 border-black rounded-3xl p-6 w-full max-w-sm card-shadow-lg space-y-4 max-h-[85vh] flex flex-col">
+          <div className="flex justify-between items-center border-b-2 border-black/20 pb-3">
+            <div>
+              <h3 className="text-xl font-black uppercase text-black">{t.scoreboardTitle}</h3>
+              <p className="text-[11px] font-bold text-amber-600 uppercase">
+                {t.scoreboardGoal.replace('{goal}', meta.toFixed(1))}
+              </p>
+            </div>
+            <button
+              onClick={() => setMostrarPlacarModal(false)}
+              className="bg-rose-500 text-white border-2 border-black rounded-full w-8 h-8 font-black text-sm flex items-center justify-center shadow-[0_2px_0_#000]"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            {ranking.map((p, idx) => {
+              const faltamPts = Math.max(0, meta - p.score);
+              const pct = Math.min(100, (p.score / meta) * 100);
+              return (
+                <div
+                  key={p.id}
+                  className={`p-3 rounded-2xl border-2 border-black ${
+                    p.id === myPlayerId ? 'bg-amber-100 border-amber-500' : 'bg-zinc-50'
+                  } text-black card-shadow space-y-1.5`}
+                >
+                  <div className="flex justify-between items-center text-xs font-black">
+                    <div className="flex items-center gap-1.5">
+                      <span>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}º`}</span>
+                      <span className="truncate max-w-[130px] font-black">{p.name}</span>
+                      {p.id === roomState.hostId && (
+                        <span className="bg-amber-400 text-black text-[9px] px-1.5 py-0.2 rounded font-black">👑</span>
+                      )}
+                      {p.id === myPlayerId && (
+                        <span className="bg-sky-200 text-sky-900 text-[9px] px-1 rounded font-bold">VOCÊ</span>
+                      )}
+                    </div>
+                    <span className="text-sm font-black">{p.score.toFixed(1)} pts</span>
+                  </div>
+
+                  <div className="w-full bg-zinc-200 h-2.5 rounded-full overflow-hidden border border-black/30">
+                    <div
+                      className="bg-gradient-to-r from-amber-400 to-emerald-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+
+                  <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase">
+                    <span>{pct.toFixed(0)}% da meta</span>
+                    <span className="text-amber-700 font-black">{t.ptsRemaining.replace('{pts}', faltamPts.toFixed(1))}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <Botao theme={theme} onClick={() => setMostrarPlacarModal(false)}>
+            {lang === 'pt' ? 'FECHAR PLACAR' : 'CLOSE SCOREBOARD'}
+          </Botao>
+        </div>
+      </div>
+    );
+  };
 
   // Barra de status superior padrão no jogo
   const renderTopBar = () => {
@@ -517,6 +616,7 @@ const App: React.FC = () => {
           </div>
         </div>
         {renderSettingsBar()}
+        {renderPlacarModal()}
       </header>
     );
   };
@@ -799,34 +899,195 @@ const App: React.FC = () => {
     );
   }
 
-  // Revelação (personalizada por papel)
-  if (roomState.phase === 'REVEAL_ROUND' && revealPayload) {
+  // Avaliação da Leitura do Anfitrião pela Mesa
+  if (roomState.phase === 'READING_EVALUATION') {
     return (
       <div
-        className="h-screen w-screen max-w-lg mx-auto flex flex-col items-center justify-center overflow-hidden px-6 space-y-6 text-center"
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-4"
         style={curTheme.bgInlineStyle}
       >
         {renderTopBar()}
-        <div className="space-y-1">
-          <p className="text-4xl font-black text-white title-crisp uppercase leading-tight">
+
+        {/* 1. PERGUNTA FIXA NO TOPO */}
+        {roomState.currentPrompt && (
+          <div className={`${curTheme.cardPromptClass} text-center shadow-lg border-3 border-black select-none`}>
+            <span className="inline-block bg-amber-400 text-black text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-1 tracking-widest border border-black shadow-[0_2px_0_#000]">
+              {t.roundQuestionFixed}
+            </span>
+            <p className="text-lg md:text-xl font-black leading-snug">
+              {roomState.currentPrompt.text}
+            </p>
+          </div>
+        )}
+
+        {!souAnfitriao && !meuVotoLeituraEnviado ? (
+          <div className="flex-1 flex flex-col justify-center items-center space-y-5 text-center px-2">
+            <div className="bg-white border-4 border-black rounded-3xl p-6 max-w-sm shadow-[0_8px_0_#000] space-y-2">
+              <span className="text-4xl inline-block animate-bounce">🗣️</span>
+              <h3 className="text-xl font-black uppercase text-black">
+                {t.tableEvaluationTitle}
+              </h3>
+              <p className="text-sm font-bold text-zinc-600 uppercase leading-relaxed">
+                {t.tableEvaluationQuestion.replace('{name}', currentHostPlayer?.name || 'o Anfitrião')}
+              </p>
+            </div>
+
+            <div className="w-full max-w-sm grid grid-cols-2 gap-3 pt-2">
+              <Botao
+                theme={theme}
+                variant="danger"
+                onClick={() => {
+                  socketRef.current?.emit('reading:evaluate', { roomId: roomState.roomId, playerId: myPlayerId, leuBem: false });
+                  setMeuVotoLeituraEnviado(true);
+                  tocar('penalidade');
+                }}
+              >
+                {t.evalVoteNo}
+              </Botao>
+              <Botao
+                theme={theme}
+                variant="success"
+                onClick={() => {
+                  socketRef.current?.emit('reading:evaluate', { roomId: roomState.roomId, playerId: myPlayerId, leuBem: true });
+                  setMeuVotoLeituraEnviado(true);
+                  tocar('jogador_entrou');
+                }}
+              >
+                {t.evalVoteYes}
+              </Botao>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-center px-4">
+            <div className="bg-white border-4 border-black rounded-3xl p-6 max-w-sm card-shadow-lg space-y-3">
+              <span className="text-4xl animate-spin inline-block">⚖️</span>
+              <h3 className="text-lg font-black uppercase text-black">
+                {t.evalWaitingHost}
+              </h3>
+              <p className="text-xs font-bold text-zinc-500 uppercase">
+                {t.voteSentMsg}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Revelação da Rodada com Frase Vencedora e Placar Completo
+  if (roomState.phase === 'REVEAL_ROUND' && revealPayload) {
+    const meta = revealPayload.winningScore || roomState.winningScore || 4.0;
+    const ranking = [...(revealPayload.placar || roomState.players)].sort((a, b) => b.score - a.score);
+
+    return (
+      <div
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-y-auto px-6 py-6 space-y-4 text-center"
+        style={curTheme.bgInlineStyle}
+      >
+        {renderTopBar()}
+
+        {/* 1. Mensagem de resultado */}
+        <div className="space-y-0.5">
+          <p className="text-3xl md:text-4xl font-black text-white title-crisp uppercase leading-tight">
             {revealPayload.mensagem}
           </p>
-          <p className="text-amber-300 font-black uppercase text-sm tracking-wider">
+          <p className="text-amber-300 font-bold uppercase text-xs tracking-wider">
             {revealPayload.subtexto}
           </p>
         </div>
-        <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg rotate-1 max-w-sm">
-          <span className="inline-block bg-black text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-3 tracking-widest">
+
+        {/* 2. Feedback da Avaliação de Leitura */}
+        {revealPayload.avaliacaoLeitura && (
+          <div
+            className={`p-2.5 rounded-2xl border-3 border-black font-black text-xs uppercase ${
+              revealPayload.avaliacaoLeitura.leuBem
+                ? 'bg-emerald-400 text-black shadow-[0_3px_0_#000]'
+                : 'bg-rose-500 text-white shadow-[0_3px_0_#000] animate-urgent'
+            }`}
+          >
+            {revealPayload.avaliacaoLeitura.leuBem ? t.evalApproved : t.evalPenalty}
+          </div>
+        )}
+
+        {/* 3. Frase Vencedora Completa */}
+        <div className="bg-white border-4 border-black rounded-3xl p-4 card-shadow-lg rotate-0.5 max-w-sm w-full mx-auto">
+          <span className="inline-block bg-black text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-1 tracking-widest">
             {t.winningPhraseLabel}
           </span>
           <p
-            className="text-xl leading-relaxed text-black font-bold"
+            className="text-base md:text-lg leading-snug text-black font-black"
             dangerouslySetInnerHTML={{ __html: montarFrase(revealPayload.frase.texto, revealPayload.frase.respostas) }}
           />
         </div>
-        <p className="text-white/80 font-bold uppercase text-xs tracking-widest">
-          {t.nextRoundSoon}
-        </p>
+
+        {/* 4. Placar Geral da Mesa */}
+        <div className="bg-black/40 backdrop-blur-md rounded-3xl p-4 w-full max-w-sm mx-auto text-left space-y-2 border-2 border-white/20">
+          <div className="flex justify-between items-center px-1">
+            <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+              {t.scoreboardTitle}
+            </span>
+            <span className="text-[10px] font-black uppercase text-white/90 bg-white/20 px-2 py-0.5 rounded-lg">
+              {t.scoreboardGoal.replace('{goal}', meta.toFixed(1))}
+            </span>
+          </div>
+
+          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+            {ranking.map((p, idx) => {
+              const faltamPts = Math.max(0, meta - p.score);
+              const pct = Math.min(100, (p.score / meta) * 100);
+              return (
+                <div
+                  key={p.id}
+                  className={`p-2.5 rounded-2xl border-2 border-black ${
+                    p.id === myPlayerId ? 'bg-amber-100 border-amber-500' : 'bg-white'
+                  } text-black card-shadow space-y-1`}
+                >
+                  <div className="flex justify-between items-center text-xs font-black">
+                    <div className="flex items-center gap-1.5">
+                      <span>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}º`}</span>
+                      <span className="truncate max-w-[120px] font-black">{p.name}</span>
+                      {p.id === roomState.hostId && (
+                        <span className="bg-amber-400 text-black text-[9px] px-1.5 py-0.2 rounded font-black">👑</span>
+                      )}
+                      {p.id === myPlayerId && (
+                        <span className="bg-sky-200 text-sky-900 text-[9px] px-1 rounded font-bold">VOCÊ</span>
+                      )}
+                    </div>
+                    <span className="text-sm font-black">{p.score.toFixed(1)} pts</span>
+                  </div>
+
+                  {/* Barra de Progresso visual */}
+                  <div className="w-full bg-zinc-200 h-2 rounded-full overflow-hidden border border-black/30">
+                    <div
+                      className="bg-gradient-to-r from-amber-400 to-emerald-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[9px] font-bold text-zinc-500 uppercase">
+                    <span>{pct.toFixed(0)}% da meta</span>
+                    <span className="text-amber-700 font-black">{t.ptsRemaining.replace('{pts}', faltamPts.toFixed(1))}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 5. Ação do Anfitrião para avançar */}
+        {souAnfitriao ? (
+          <div className="w-full max-w-sm mx-auto pt-1">
+            <Botao
+              theme={theme}
+              onClick={() => socketRef.current?.emit('game:next_round', { roomId: roomState.roomId })}
+            >
+              {lang === 'pt' ? 'PRÓXIMA RODADA ➡️' : 'NEXT ROUND ➡️'}
+            </Botao>
+          </div>
+        ) : (
+          <p className="text-white/80 font-bold uppercase text-[11px] tracking-widest">
+            {t.nextRoundSoon}
+          </p>
+        )}
       </div>
     );
   }
@@ -900,9 +1161,23 @@ const App: React.FC = () => {
               <Botao theme={theme} onClick={confirmarPergunta} disabled={!roomState.currentPrompt}>
                 {t.useThisQuestionBtn}
               </Botao>
-              <Botao theme={theme} variant="secondary" onClick={sortearPergunta}>
-                {t.drawAnotherBtn}
-              </Botao>
+              <div className="text-center space-y-1">
+                <Botao
+                  theme={theme}
+                  variant="secondary"
+                  onClick={sortearPergunta}
+                  disabled={(roomState.promptDrawsLeft ?? 3) <= 0}
+                >
+                  {(roomState.promptDrawsLeft ?? 3) <= 0
+                    ? t.drawLimitReached
+                    : `${t.drawAnotherBtn} (${roomState.promptDrawsLeft ?? 3}/${roomState.maxPromptDraws ?? 3})`}
+                </Botao>
+                <p className="text-[11px] font-bold text-amber-300 uppercase">
+                  {t.drawsLeftLabel
+                    .replace('{left}', String(roomState.promptDrawsLeft ?? 3))
+                    .replace('{max}', String(roomState.maxPromptDraws ?? 3))}
+                </p>
+              </div>
             </div>
           </div>
         ) : (

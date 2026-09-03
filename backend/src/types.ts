@@ -23,6 +23,7 @@ export type RoomPhase =
   | 'WILDCARD_OFFER'
   | 'JUDGMENT_READING'
   | 'JUDGMENT_PICKING'
+  | 'READING_EVALUATION'
   | 'REVEAL_ROUND'
   | 'GAME_OVER';
 
@@ -38,11 +39,12 @@ export interface Room {
   phase: RoomPhase;
   currentPrompt: CurrentPrompt | null;
   usedPromptTexts: string[];
+  promptDrawsCount: number;
   submissions: Submission[];
   shuffledSubmissions: Submission[];
-  readIndex: number;
-  readOutcome: 'reading' | 'confirming' | 'success' | 'failed';
+  pendingWinnerSubmissionId: string | null;
   readVotes: Record<string, boolean>;
+  evaluationOutcome: { leuBem: boolean; votosSim: number; votosNao: number } | null;
   wildcardHolderId: string | null;
   wildcardOfferedTo: string[];
   wildcardPendingId: string | null;
@@ -65,9 +67,10 @@ export interface Configuracoes {
   logo_intro_duracao_seg: number;
 }
 
-export const WINNING_SCORE = 17;
+export const WINNING_SCORE = 4.0;
 export const ROUND_WIN_POINTS = 0.8;
-export const READ_ALOUD_PENALTY = 0.1;
+export const READ_ALOUD_PENALTY = 0.3;
+export const MAX_PROMPT_DRAWS = 3;
 export const READ_ALOUD_SECONDS = 15;
 export const ANSWER_SECONDS = 45;
 export const MIN_PLAYERS = 3;

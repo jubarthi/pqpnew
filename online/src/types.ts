@@ -5,6 +5,7 @@ export type RoomPhase =
   | 'WILDCARD_OFFER'
   | 'JUDGMENT_READING'
   | 'JUDGMENT_PICKING'
+  | 'READING_EVALUATION'
   | 'REVEAL_ROUND'
   | 'GAME_OVER';
 
@@ -34,10 +35,16 @@ export interface RoomState {
   players: PublicPlayer[];
   hostId: string;
   currentPrompt: CurrentPrompt | null;
+  promptDrawsLeft?: number;
+  maxPromptDraws?: number;
   yourHand: string[];
   isWildcardHolder: boolean;
   winningScore: number;
   pickingSubmissions?: PickingSubmission[];
+  evaluationInfo?: {
+    hostName: string;
+    seconds: number;
+  };
 }
 
 export interface Som {

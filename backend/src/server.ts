@@ -17,6 +17,8 @@ import type { Room, Player } from './types.js';
 import {
   WINNING_SCORE,
   ROUND_WIN_POINTS,
+  READ_ALOUD_PENALTY,
+  MAX_PROMPT_DRAWS,
   ANSWER_SECONDS,
   round1,
 } from './types.js';
@@ -101,8 +103,15 @@ function emitToPlayer(room: Room, playerId: string, event: string, payload: unkn
 
 function broadcastState(room: Room) {
   const pickingSubmissions =
-    room.phase === 'JUDGMENT_PICKING' || room.phase === 'JUDGMENT_READING'
+    room.phase === 'JUDGMENT_PICKING' || room.phase === 'READING_EVALUATION'
       ? room.shuffledSubmissions.map((s) => ({ submissionId: s.playerId, texts: s.texts }))
+      : undefined;
+
+  const currentHost = room.players.find((p) => p.id === room.hostId);
+  const promptDrawsLeft = Math.max(0, MAX_PROMPT_DRAWS - (room.promptDrawsCount || 0));
+  const evaluationInfo =
+    room.phase === 'READING_EVALUATION' && currentHost
+      ? { hostName: currentHost.name, seconds: 5 }
       : undefined;
 
   for (const p of room.players) {
@@ -113,12 +122,15 @@ function broadcastState(room: Room) {
       players: room.players.map(publicPlayer),
       hostId: room.hostId,
       currentPrompt: room.currentPrompt,
+      promptDrawsLeft,
+      maxPromptDraws: MAX_PROMPT_DRAWS,
       yourHand: p.hand,
       isWildcardHolder: p.id === room.wildcardHolderId,
       winningScore: WINNING_SCORE,
       lang: room.lang,
       isMuted: room.isMuted,
       pickingSubmissions,
+      evaluationInfo,
     });
   }
 }
@@ -253,13 +265,77 @@ function fecharRespostas(room: Room) {
     setTimeout(() => {
       if (room.phase === 'JUDGMENT_PICKING' && room.shuffledSubmissions.length > 0) {
         const randomSub = room.shuffledSubmissions[Math.floor(Math.random() * room.shuffledSubmissions.length)];
-        escolherVencedor(room, randomSub.playerId);
+        iniciarAvaliacaoDeLeitura(room, randomSub.playerId);
       }
     }, 3500);
   }
 }
 
-function escolherVencedor(room: Room, submissionId: string) {
+function iniciarAvaliacaoDeLeitura(room: Room, winnerSubmissionId: string) {
+  room.pendingWinnerSubmissionId = winnerSubmissionId;
+  room.phase = 'READING_EVALUATION';
+  room.readVotes = {};
+
+  const votantes = room.players.filter((p) => !p.isHost && p.connected);
+  broadcastState(room);
+
+  // Se não há votantes humanos conectados, conclui direto
+  if (votantes.length === 0) {
+    concluirAvaliacaoLeitura(room);
+    return;
+  }
+
+  // Bots votam SIM automaticamente após 800ms
+  const botsVotantes = votantes.filter((p) => p.isBot);
+  if (botsVotantes.length > 0) {
+    setTimeout(() => {
+      if (room.phase === 'READING_EVALUATION') {
+        for (const b of botsVotantes) {
+          room.readVotes[b.id] = true;
+        }
+        if (Object.keys(room.readVotes).length >= votantes.length) {
+          concluirAvaliacaoLeitura(room);
+        }
+      }
+    }, 800);
+  }
+
+  // Timeout de 5s para não travar o jogo
+  if (room.readTimer) clearTimeout(room.readTimer);
+  room.readTimer = setTimeout(() => {
+    if (room.phase === 'READING_EVALUATION') {
+      concluirAvaliacaoLeitura(room);
+    }
+  }, 5000);
+}
+
+function concluirAvaliacaoLeitura(room: Room) {
+  if (room.readTimer) clearTimeout(room.readTimer);
+  room.readTimer = null;
+
+  const votos = Object.values(room.readVotes);
+  const sim = votos.filter(Boolean).length;
+  const nao = votos.length - sim;
+  const leuBem = votos.length === 0 ? true : sim >= nao;
+
+  const host = room.players.find((p) => p.isHost);
+  if (!leuBem && host) {
+    host.score = round1(Math.max(0, host.score - READ_ALOUD_PENALTY));
+    host.penalties += 1;
+  }
+
+  room.evaluationOutcome = { leuBem, votosSim: sim, votosNao: nao };
+
+  if (room.pendingWinnerSubmissionId) {
+    escolherVencedor(room, room.pendingWinnerSubmissionId, room.evaluationOutcome);
+  }
+}
+
+function escolherVencedor(
+  room: Room,
+  submissionId: string,
+  avaliacaoLeitura?: { leuBem: boolean; votosSim: number; votosNao: number } | null
+) {
   const submissao = room.shuffledSubmissions.find((s) => s.playerId === submissionId);
   if (!submissao || !room.currentPrompt) return;
 
@@ -271,12 +347,17 @@ function escolherVencedor(room: Room, submissionId: string) {
   room.phase = 'REVEAL_ROUND';
 
   const fraseCompleta = { texto: room.currentPrompt.text, respostas: submissao.texts };
+  const placarAtualizado = room.players.map(publicPlayer);
 
   emitToPlayer(room, vencedor.id, 'round:reveal_result', {
     role: 'winner',
     mensagem: '👑 AE PORR@! VOCÊ VENCEU ESSA!',
     subtexto: `+${ROUND_WIN_POINTS.toFixed(1)} ponto na conta. Você é o novo Anfitrião da mesa.`,
     frase: fraseCompleta,
+    vencedorNome: vencedor.name,
+    avaliacaoLeitura,
+    placar: placarAtualizado,
+    winningScore: WINNING_SCORE,
   });
 
   const host = room.players.find((p) => p.isHost);
@@ -287,6 +368,9 @@ function escolherVencedor(room: Room, submissionId: string) {
       subtexto: `Você coroou ${vencedor.name}. O bastão passou pra ele.`,
       frase: fraseCompleta,
       vencedorNome: vencedor.name,
+      avaliacaoLeitura,
+      placar: placarAtualizado,
+      winningScore: WINNING_SCORE,
     });
   }
 
@@ -298,6 +382,9 @@ function escolherVencedor(room: Room, submissionId: string) {
       subtexto: `A frase de ${vencedor.name} levou a rodada.`,
       frase: fraseCompleta,
       vencedorNome: vencedor.name,
+      avaliacaoLeitura,
+      placar: placarAtualizado,
+      winningScore: WINNING_SCORE,
     });
   }
 
@@ -308,18 +395,19 @@ function escolherVencedor(room: Room, submissionId: string) {
     const ranking = [...room.players].sort((a, b) => b.score - a.score).map(publicPlayer);
     io.to(room.id).emit('game:champion_declared', { ranking, campeao: vencedor.name });
   } else {
-    // Se o host atual for robô, avança automaticamente após 5s
+    // Se o host atual for robô, avança automaticamente após 6s
     if (host?.isBot) {
       setTimeout(() => {
         if (room.phase === 'REVEAL_ROUND') {
           proximaRodada(room);
         }
-      }, 5000);
+      }, 6000);
     }
   }
 }
 
 async function prepararPerguntaDaRodada(room: Room) {
+  room.promptDrawsCount = 0;
   const p = await drawRandomPergunta(room.usedPromptTexts, room.lang);
   room.usedPromptTexts.push(p.texto);
   room.currentPrompt = { text: p.texto, slots: p.espacos };
@@ -437,10 +525,14 @@ io.on('connection', (socket) => {
     const room = buscarSala(roomId);
     if (!room) return ack?.({ erro: 'Sala não encontrada.' });
     if (!ehHostValido(room, playerId, socket.id)) return ack?.({ erro: 'Só o anfitrião pode sortear a pergunta.' });
+    if ((room.promptDrawsCount || 0) >= MAX_PROMPT_DRAWS) {
+      return ack?.({ erro: `Limite de ${MAX_PROMPT_DRAWS} trocas de pergunta atingido nesta rodada!` });
+    }
+    room.promptDrawsCount = (room.promptDrawsCount || 0) + 1;
     const pergunta = await drawRandomPergunta(room.usedPromptTexts, room.lang);
     room.currentPrompt = { text: pergunta.texto, slots: pergunta.espacos };
     room.usedPromptTexts.push(pergunta.texto);
-    ack?.({ ok: true, texto: pergunta.texto });
+    ack?.({ ok: true, texto: pergunta.texto, drawsLeft: MAX_PROMPT_DRAWS - room.promptDrawsCount });
     broadcastState(room);
   });
 
@@ -500,8 +592,21 @@ io.on('connection', (socket) => {
     const room = buscarSala(roomId);
     if (!room || room.phase !== 'JUDGMENT_PICKING') return ack?.({ erro: 'Não é hora de escolher.' });
     if (!ehHostValido(room, playerId, socket.id)) return ack?.({ erro: 'Só o anfitrião pode escolher a vencedora.' });
-    escolherVencedor(room, submissionId);
+    iniciarAvaliacaoDeLeitura(room, submissionId);
     ack?.({ ok: true });
+  });
+
+  socket.on('reading:evaluate', ({ roomId, playerId, leuBem }: { roomId: string; playerId: string; leuBem: boolean }) => {
+    const room = buscarSala(roomId);
+    if (!room || room.phase !== 'READING_EVALUATION') return;
+    const jogador = room.players.find((p) => p.id === playerId);
+    if (!jogador || jogador.isHost) return;
+    room.readVotes[playerId] = leuBem;
+
+    const votantesEsperados = room.players.filter((p) => !p.isHost && p.connected).length;
+    if (Object.keys(room.readVotes).length >= votantesEsperados) {
+      concluirAvaliacaoLeitura(room);
+    }
   });
 
   socket.on('game:next_round', ({ roomId }: { roomId: string }) => {
