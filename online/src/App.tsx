@@ -7,6 +7,7 @@ import { translations, Language } from './i18n';
 import { themes, ThemeType } from './theme';
 import { soundEngine } from './soundEngine';
 import { AdminPanel } from './AdminPanel';
+import { Tutorial } from './Tutorial';
 
 function resolverServerUrl(): string {
   if (typeof window !== 'undefined') {
@@ -115,7 +116,7 @@ const App: React.FC = () => {
   const [introTipo, setIntroTipo] = useState<'video' | 'gif' | 'imagem' | null>(null);
 
   const [connected, setConnected] = useState(false);
-  const [localScreen, setLocalScreen] = useState<'home' | 'create' | 'join'>('home');
+  const [localScreen, setLocalScreen] = useState<'welcome' | 'tutorial' | 'home' | 'create' | 'join'>('welcome');
   const [hostNameInput, setHostNameInput] = useState('');
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [roomIdInput, setRoomIdInput] = useState('');
@@ -649,6 +650,17 @@ const App: React.FC = () => {
   }
 
   if (!roomState) {
+    if (localScreen === 'tutorial') {
+      return (
+        <Tutorial
+          theme={theme}
+          lang={lang}
+          onFinish={() => setLocalScreen('home')}
+          onBackToWelcome={() => setLocalScreen('welcome')}
+        />
+      );
+    }
+
     return (
       <div
         className="h-screen w-screen max-w-lg mx-auto flex flex-col relative overflow-hidden px-6 py-6"
@@ -662,8 +674,67 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* TELA DE BOAS-VINDAS (PRIMEIRA VEZ vs SÓ ENTRAR) */}
+        {localScreen === 'welcome' && (
+          <div className="flex-1 flex flex-col items-center justify-center space-y-7 text-center select-none">
+            {theme === 'popart' ? (
+              <div className="relative w-full max-w-[280px] mx-auto p-8 bg-white rounded-[2rem] shadow-[0_12px_28px_rgba(0,30,80,0.3)] rotate-[-1deg] border-4 border-[#003388] text-center my-2 select-none">
+                <span className="absolute -top-4 -left-3 text-2xl rotate-[-15deg]">⚡</span>
+                <span className="absolute -top-3 right-4 text-2xl font-black text-[#003388]">?</span>
+                <span className="absolute -bottom-3 -left-2 text-xl rotate-12">⚙️</span>
+                <span className="absolute -bottom-4 right-6 text-xl">💦</span>
+                <h1 className="text-6xl font-black text-[#003388] tracking-tight">{t.gameTitle}</h1>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-sky-600 mt-1">{t.gameSubtitle}</p>
+              </div>
+            ) : (
+              <div className="space-y-2 transform -rotate-1 text-center my-2 select-none">
+                <h1 className="text-7xl font-black text-white title-crisp tracking-tight">{t.gameTitle}</h1>
+                <p className="text-lg font-black uppercase tracking-[0.25em] text-amber-300 drop-shadow-sm">{t.gameSubtitle}</p>
+              </div>
+            )}
+
+            <div className="w-full max-w-sm space-y-3">
+              {/* Opção 1: Primeira Vez */}
+              <div className="space-y-1">
+                <Botao theme={theme} onClick={() => setLocalScreen('tutorial')}>
+                  {t.firstTimeBtn}
+                </Botao>
+                <p className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+                  {t.firstTimeSubtitle}
+                </p>
+              </div>
+
+              {/* Opção 2: Só Entrar */}
+              <div className="space-y-1 pt-1.5">
+                <Botao theme={theme} variant="secondary" onClick={() => setLocalScreen('home')}>
+                  {t.justEnterBtn}
+                </Botao>
+                <p className="text-[11px] font-bold text-white/70 uppercase tracking-wider">
+                  {t.justEnterSubtitle}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 w-full max-w-sm pt-2">
+              <div className="bg-black/30 border border-white/20 rounded-xl px-3 py-1.5 text-[10px] font-bold text-white/90 uppercase tracking-wider">
+                🎮 {t.gameTagline}
+              </div>
+              <button
+                onClick={() => {
+                  setShowAdmin(true);
+                  window.history.pushState({}, '', '/admin');
+                }}
+                className="bg-black/40 hover:bg-black/60 border border-white/30 text-amber-300 text-[10px] font-black uppercase px-3 py-1.5 rounded-xl transition-all"
+              >
+                🔐 Painel Admin
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TELA DE ESCOLHA (ABRIR OU ENTRAR EM SALA) */}
         {localScreen === 'home' && (
-          <div className="flex-1 flex flex-col items-center justify-center space-y-8 text-center">
+          <div className="flex-1 flex flex-col items-center justify-center space-y-7 text-center">
             {theme === 'popart' ? (
               <div className="relative w-full max-w-[280px] mx-auto p-8 bg-white rounded-[2rem] shadow-[0_12px_28px_rgba(0,30,80,0.3)] rotate-[-1deg] border-4 border-[#003388] text-center my-2 select-none">
                 <span className="absolute -top-4 -left-3 text-2xl rotate-[-15deg]">⚡</span>
@@ -684,10 +755,15 @@ const App: React.FC = () => {
               <Botao theme={theme} onClick={() => setLocalScreen('create')}>{t.hostRoom}</Botao>
               <Botao theme={theme} variant="secondary" onClick={() => setLocalScreen('join')}>{t.joinRoom}</Botao>
             </div>
+
             <div className="flex items-center justify-between gap-2 w-full max-w-sm pt-2">
-              <div className="bg-black/30 border border-white/20 rounded-xl px-3 py-1.5 text-[10px] font-bold text-white/90 uppercase tracking-wider">
-                🎮 {t.gameTagline}
-              </div>
+              <button
+                onClick={() => setLocalScreen('tutorial')}
+                className="bg-amber-400 hover:bg-amber-300 text-black border-2 border-black rounded-xl px-3 py-1.5 text-[10px] font-black uppercase shadow-[0_2px_0_#000] transition-all"
+              >
+                {t.seeTutorialBtn}
+              </button>
+
               <button
                 onClick={() => {
                   setShowAdmin(true);

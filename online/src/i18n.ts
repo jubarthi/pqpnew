@@ -85,6 +85,11 @@ export const translations = {
     scoreboardGoal: 'META DE VITÓRIA: {goal} PONTOS',
     ptsRemaining: 'Falta {pts} pt para vencer',
     scoreboardBtn: '🏆 Placar',
+    firstTimeBtn: '🎓 PRIMEIRA VEZ (VER TUTORIAL)',
+    justEnterBtn: '🚀 SÓ ENTRAR (JÁ SEI JOGAR)',
+    firstTimeSubtitle: 'Aprenda em 1 minuto as regras e telas do jogo',
+    justEnterSubtitle: 'Entrar direto nas salas de jogo',
+    seeTutorialBtn: '🎓 Como Jogar? (Tutorial)',
   },
   en: {
     gameTitle: 'P.Q.P.',
@@ -170,5 +175,10 @@ export const translations = {
     scoreboardGoal: 'VICTORY GOAL: {goal} POINTS',
     ptsRemaining: '{pts} pts left to win',
     scoreboardBtn: '🏆 Score',
+    firstTimeBtn: '🎓 FIRST TIME (TUTORIAL)',
+    justEnterBtn: '🚀 JUST PLAY (SKIP)',
+    firstTimeSubtitle: 'Learn the game rules and flow in 1 minute',
+    justEnterSubtitle: 'Jump straight into game rooms',
+    seeTutorialBtn: '🎓 How to Play? (Tutorial)',
   },
 };

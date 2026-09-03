@@ -1,1 +1,1 @@
-{"root":["./src/adminpanel.tsx","./src/app.tsx","./src/content.ts","./src/i18n.ts","./src/main.tsx","./src/soundengine.ts","./src/theme.ts","./src/types.ts","./src/usesom.ts","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/adminpanel.tsx","./src/app.tsx","./src/tutorial.tsx","./src/content.ts","./src/i18n.ts","./src/main.tsx","./src/soundengine.ts","./src/theme.ts","./src/types.ts","./src/usesom.ts","./src/vite-env.d.ts"],"version":"5.9.3"}

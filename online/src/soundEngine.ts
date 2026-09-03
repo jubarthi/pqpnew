@@ -234,6 +234,11 @@ class SoundEngine {
     osc.start(now);
     osc.stop(now + 0.09);
   }
+
+  // 6. Clique Geral de UI
+  public playClick() {
+    this.playVoteTick();
+  }
 }
 
 export const soundEngine = new SoundEngine();
