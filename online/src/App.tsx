@@ -457,8 +457,8 @@ const App: React.FC = () => {
     });
   }, [roomState, myPlayerId, handSelection, freeTexts]);
 
-  const pedirParaMesa = useCallback(() => {
-    socketRef.current?.emit('reading:ask_table', { roomId: roomState?.roomId, playerId: myPlayerId });
+  const proximaCarta = useCallback(() => {
+    socketRef.current?.emit('reading:next_card', { roomId: roomState?.roomId, playerId: myPlayerId });
   }, [roomState?.roomId, myPlayerId]);
 
   const votar = useCallback(
@@ -1084,12 +1084,25 @@ const App: React.FC = () => {
   if (roomState.phase === 'JUDGMENT_READING') {
     return (
       <div
-        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-5"
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-4"
         style={curTheme.bgInlineStyle}
       >
         {renderTopBar()}
 
-        <div className="flex justify-between items-center">
+        {/* 1. PERGUNTA FIXA NO TOPO */}
+        {roomState.currentPrompt && (
+          <div className={`${curTheme.cardPromptClass} text-center shadow-lg border-3 border-black select-none`}>
+            <span className="inline-block bg-amber-400 text-black text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-1 tracking-widest border border-black shadow-[0_2px_0_#000]">
+              {t.roundQuestionFixed}
+            </span>
+            <p className="text-lg md:text-xl font-black leading-snug">
+              {roomState.currentPrompt.text}
+            </p>
+          </div>
+        )}
+
+        {/* 2. CABEÇALHO DO STATUS DE LEITURA */}
+        <div className="flex justify-between items-center px-1">
           <div>
             <p className="text-xs font-black text-white/90 uppercase">
               {t.readingAnswerCount
@@ -1097,12 +1110,12 @@ const App: React.FC = () => {
                 .replace('{total}', String(readingCard?.total ?? '?'))}
             </p>
             <p className="text-[11px] font-bold text-amber-300 uppercase">
-              {t.hostReadingSubtitle}
+              {souAnfitriao ? t.readQuestionAndAnswer : t.hostReadingSubtitle}
             </p>
           </div>
           {!askingVote && (
             <div
-              className={`px-4 py-1.5 rounded-2xl border-3 border-black font-black text-2xl flex items-center gap-1.5 shadow-[0_4px_0_#000] ${
+              className={`px-3.5 py-1 rounded-2xl border-3 border-black font-black text-xl flex items-center gap-1 shadow-[0_3px_0_#000] ${
                 readingSecondsLeft <= 5 ? 'bg-red-500 text-white animate-urgent' : 'bg-amber-300 text-black'
               }`}
             >
@@ -1112,27 +1125,46 @@ const App: React.FC = () => {
           )}
         </div>
 
-        {readingCard && (
-          <div className={`${curTheme.cardPromptClass} rotate-1 text-center`}>
-            <span className="inline-block bg-[#003388] text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-3 tracking-widest">
-              {lang === 'pt' ? 'LEIA COM ENTUSIASMO 🗣️' : 'READ WITH ENTHUSIASM 🗣️'}
-            </span>
-            <p className="text-2xl leading-relaxed font-black">
-              {readingCard.texts.join('  •  ')}
-            </p>
+        {/* 3. RESPOSTA SENDO LIDA (COM A FRASE COMPLETA MONTADA) */}
+        {readingCard && !askingVote && (
+          <div className="flex-1 flex flex-col justify-center my-auto space-y-3">
+            <div className="bg-white border-4 border-black rounded-3xl p-5 shadow-[0_8px_0_#000] text-center transform rotate-0.5">
+              <span className="inline-block bg-[#003388] text-white text-[10px] font-black uppercase px-3 py-1 rounded-full mb-3 tracking-widest">
+                {lang === 'pt' ? 'RESPOSTA DO JOGADOR 🃏' : 'PLAYER ANSWER 🃏'}
+              </span>
+
+              {roomState.currentPrompt && roomState.currentPrompt.text.includes('___') ? (
+                <p
+                  className="text-xl md:text-2xl leading-relaxed font-black text-black"
+                  dangerouslySetInnerHTML={{
+                    __html: montarFrase(roomState.currentPrompt.text, readingCard.texts),
+                  }}
+                />
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-2xl leading-relaxed font-black text-black">
+                    {readingCard.texts.join('  •  ')}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
+        {/* 4. BOTÃO DE AVANÇO DO ANFITRIÃO */}
         {souAnfitriao && !askingVote && (
-          <div className="flex-1 flex flex-col justify-end space-y-3">
-            <Botao theme={theme} variant="primary" onClick={pedirParaMesa}>
-              {lang === 'pt' ? 'JÁ LI, PERGUNTAR PRA MESA' : 'FINISHED READING, ASK TABLE'}
+          <div className="pt-2 space-y-2">
+            <Botao theme={theme} variant="primary" onClick={proximaCarta}>
+              {readingCard && (readingCard.index + 1) >= (readingCard.total ?? 1)
+                ? t.finishReadingBtn
+                : `${t.nextCardBtn} (${(readingCard?.index ?? 0) + 1}/${readingCard?.total ?? 1})`}
             </Botao>
           </div>
         )}
 
+        {/* 5. VOTAÇÃO DA MESA NO FINAL DA LEITURA */}
         {!souAnfitriao && askingVote && !meuVotoEnviado && (
-          <div className="flex-1 flex flex-col justify-center items-center space-y-6">
+          <div className="flex-1 flex flex-col justify-center items-center space-y-5">
             <div className="bg-white border-4 border-black rounded-3xl p-6 max-w-sm text-center shadow-[0_8px_0_#000]">
               <p className="text-2xl font-black uppercase text-black">
                 {t.askVoteTitle}
@@ -1167,43 +1199,112 @@ const App: React.FC = () => {
 
   // Anfitrião escolhe a vencedora
   if (roomState.phase === 'JUDGMENT_PICKING') {
+    const candidateSubmissions = (pickingSubmissions && pickingSubmissions.length > 0
+      ? pickingSubmissions
+      : roomState.pickingSubmissions) || [];
+
     if (!souAnfitriao) {
       return (
         <div
-          className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6"
+          className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-4"
           style={curTheme.bgInlineStyle}
         >
           {renderTopBar()}
-          <div className="flex-1 flex flex-col items-center justify-center space-y-4 text-center px-4">
-            <span className="text-5xl animate-bounce">👑</span>
-            <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg max-w-sm">
-              <p className="text-xl font-black text-black uppercase leading-relaxed">
+
+          {/* 1. PERGUNTA FIXA NO TOPO */}
+          {roomState.currentPrompt && (
+            <div className={`${curTheme.cardPromptClass} text-center shadow-lg border-3 border-black select-none`}>
+              <span className="inline-block bg-amber-400 text-black text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-1 tracking-widest border border-black shadow-[0_2px_0_#000]">
+                {t.roundQuestionFixed}
+              </span>
+              <p className="text-lg md:text-xl font-black leading-snug">
+                {roomState.currentPrompt.text}
+              </p>
+            </div>
+          )}
+
+          <div className="text-center py-1">
+            <div className="bg-white border-4 border-black rounded-3xl p-3.5 card-shadow max-w-sm mx-auto">
+              <span className="text-2xl">👑</span>
+              <p className="text-sm font-black text-black uppercase leading-snug mt-1">
                 {t.waitingHostPick.replace('{name}', currentHostPlayer?.name || '')}
               </p>
             </div>
           </div>
+
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1 opacity-90">
+            {candidateSubmissions.map((s) => (
+              <div
+                key={s.submissionId}
+                className={`bg-white/95 border-3 border-black ${curTheme.id === 'popart' ? 'rounded-[2rem]' : 'rounded-2xl'} p-3.5 card-shadow`}
+              >
+                {roomState.currentPrompt && roomState.currentPrompt.text.includes('___') ? (
+                  <p
+                    className="text-base text-black font-black leading-snug"
+                    dangerouslySetInnerHTML={{
+                      __html: montarFrase(roomState.currentPrompt.text, s.texts),
+                    }}
+                  />
+                ) : (
+                  <p className="text-base text-black font-black leading-snug">
+                    {s.texts.join('  •  ')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       );
     }
+
     return (
       <div
-        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-4"
+        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-3"
         style={curTheme.bgInlineStyle}
       >
         {renderTopBar()}
-        <div className="text-center space-y-1">
-          <h2 className="text-3xl font-black text-white title-crisp uppercase">{t.pickWinnerTitle}</h2>
-          <p className="text-amber-300 font-bold uppercase text-xs">{t.pickWinnerSubtitle}</p>
+
+        {/* 1. PERGUNTA FIXA NO TOPO */}
+        {roomState.currentPrompt && (
+          <div className={`${curTheme.cardPromptClass} text-center shadow-lg border-3 border-black select-none`}>
+            <span className="inline-block bg-amber-400 text-black text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-1 tracking-widest border border-black shadow-[0_2px_0_#000]">
+              {t.roundQuestionFixed}
+            </span>
+            <p className="text-lg md:text-xl font-black leading-snug">
+              {roomState.currentPrompt.text}
+            </p>
+          </div>
+        )}
+
+        <div className="text-center">
+          <h2 className="text-2xl font-black text-white title-crisp uppercase">
+            {lang === 'pt' ? '🗣️ LEIA EM VOZ ALTA E ESCOLHA A MELHOR!' : '🗣️ READ ALOUD AND PICK THE BEST!'}
+          </h2>
+          <p className="text-amber-300 font-bold uppercase text-xs mt-0.5">
+            {lang === 'pt' ? 'A frase mais engraçada leva +0.8 ponto' : 'Funniest response takes +0.8 points'}
+          </p>
         </div>
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {((pickingSubmissions && pickingSubmissions.length > 0 ? pickingSubmissions : roomState.pickingSubmissions) || []).map((s, i) => (
+
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          {candidateSubmissions.map((s, i) => (
             <div
               key={s.submissionId}
-              className={`bg-white border-4 border-black ${curTheme.id === 'popart' ? 'rounded-[2rem]' : 'rounded-3xl'} p-5 card-shadow transition-transform ${
+              className={`bg-white border-4 border-black ${curTheme.id === 'popart' ? 'rounded-[2rem]' : 'rounded-3xl'} p-4 card-shadow transition-transform ${
                 i % 2 === 0 ? '-rotate-0.5' : 'rotate-0.5'
               }`}
             >
-              <p className="text-xl text-black font-black mb-4 leading-snug">{s.texts.join('  •  ')}</p>
+              {roomState.currentPrompt && roomState.currentPrompt.text.includes('___') ? (
+                <p
+                  className="text-lg text-black font-black mb-3 leading-snug"
+                  dangerouslySetInnerHTML={{
+                    __html: montarFrase(roomState.currentPrompt.text, s.texts),
+                  }}
+                />
+              ) : (
+                <p className="text-lg text-black font-black mb-3 leading-snug">
+                  {s.texts.join('  •  ')}
+                </p>
+              )}
               <Botao theme={theme} onClick={() => escolherVencedora(s.submissionId)}>{t.voteThisCardBtn}</Botao>
             </div>
           ))}

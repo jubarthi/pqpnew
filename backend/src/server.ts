@@ -17,8 +17,6 @@ import type { Room, Player } from './types.js';
 import {
   WINNING_SCORE,
   ROUND_WIN_POINTS,
-  READ_ALOUD_PENALTY,
-  READ_ALOUD_SECONDS,
   ANSWER_SECONDS,
   round1,
 } from './types.js';
@@ -242,115 +240,23 @@ function fecharRespostas(room: Room) {
     return;
   }
 
-  room.phase = 'JUDGMENT_READING';
-  room.readIndex = 0;
-  room.readOutcome = 'reading';
-  room.readVotes = {};
-
+  // Vai direto para o Anfitrião com a Pergunta Fixa no Topo e Todas as Respostas na tela
+  room.phase = 'JUDGMENT_PICKING';
   broadcastState(room);
-  anunciarCartaAtual(room);
-}
-
-function anunciarCartaAtual(room: Room) {
-  const atual = room.shuffledSubmissions[room.readIndex];
-  if (!atual) return;
-  io.to(room.id).emit('round:reading_card', {
-    index: room.readIndex,
-    total: room.shuffledSubmissions.length,
-    texts: atual.texts,
-    submissionId: atual.playerId,
-    seconds: READ_ALOUD_SECONDS,
+  io.to(room.id).emit('round:submission_status', {
+    submissions: room.shuffledSubmissions.map((s) => ({ submissionId: s.playerId, texts: s.texts })),
   });
 
+  // Se o anfitrião for robô, escolhe a melhor resposta em 3.5s
   const host = room.players.find((p) => p.isHost);
-  if (host?.isBot) {
-    // Se o anfitrião for robô, simula leitura em 3.5 segundos
+  if (host?.isBot && room.shuffledSubmissions.length > 0) {
     setTimeout(() => {
-      if (room.phase === 'JUDGMENT_READING' && room.readOutcome === 'reading') {
-        pedirVotoDaMesa(room);
+      if (room.phase === 'JUDGMENT_PICKING' && room.shuffledSubmissions.length > 0) {
+        const randomSub = room.shuffledSubmissions[Math.floor(Math.random() * room.shuffledSubmissions.length)];
+        escolherVencedor(room, randomSub.playerId);
       }
     }, 3500);
-  } else {
-    if (room.readTimer) clearTimeout(room.readTimer);
-    room.readTimer = setTimeout(() => pedirVotoDaMesa(room), READ_ALOUD_SECONDS * 1000);
   }
-}
-
-function pedirVotoDaMesa(room: Room) {
-  if (room.readTimer) clearTimeout(room.readTimer);
-  room.readTimer = null;
-  room.readOutcome = 'confirming';
-  room.readVotes = {};
-
-  const votantes = room.players.filter((p) => !p.isHost && p.connected);
-  io.to(room.id).emit('round:ask_vote', { votantesEsperados: votantes.length });
-
-  // Robôs votam SIM automaticamente após 800ms
-  const botsVotantes = votantes.filter((p) => p.isBot);
-  if (botsVotantes.length > 0) {
-    setTimeout(() => {
-      if (room.phase === 'JUDGMENT_READING' && room.readOutcome === 'confirming') {
-        for (const b of botsVotantes) {
-          room.readVotes[b.id] = true;
-        }
-        if (Object.keys(room.readVotes).length >= votantes.length) {
-          apurarVotoDaMesa(room);
-        }
-      }
-    }, 800);
-  }
-
-  room.readTimer = setTimeout(() => apurarVotoDaMesa(room), 8000);
-}
-
-function apurarVotoDaMesa(room: Room) {
-  if (room.readTimer) clearTimeout(room.readTimer);
-  room.readTimer = null;
-
-  const votos = Object.values(room.readVotes);
-  const sim = votos.filter(Boolean).length;
-  const nao = votos.length - sim;
-  const leuAlto = votos.length === 0 ? true : sim >= nao;
-
-  room.readOutcome = leuAlto ? 'success' : 'failed';
-
-  if (!leuAlto) {
-    const host = room.players.find((p) => p.isHost);
-    if (host) {
-      host.score = round1(host.score - READ_ALOUD_PENALTY);
-      host.penalties += 1;
-    }
-  }
-
-  io.to(room.id).emit('round:read_result', { leuAlto, placar: room.players.map(publicPlayer) });
-  broadcastState(room);
-
-  setTimeout(() => {
-    const proximo = room.readIndex + 1;
-    if (proximo >= room.shuffledSubmissions.length) {
-      room.phase = 'JUDGMENT_PICKING';
-      broadcastState(room);
-      io.to(room.id).emit('round:submission_status', {
-        submissions: room.shuffledSubmissions.map((s) => ({ submissionId: s.playerId, texts: s.texts })),
-      });
-
-      // Se o anfitrião for robô, escolhe a melhor resposta em 2.5s
-      const host = room.players.find((p) => p.isHost);
-      if (host?.isBot && room.shuffledSubmissions.length > 0) {
-        setTimeout(() => {
-          if (room.phase === 'JUDGMENT_PICKING' && room.shuffledSubmissions.length > 0) {
-            const randomSub = room.shuffledSubmissions[Math.floor(Math.random() * room.shuffledSubmissions.length)];
-            escolherVencedor(room, randomSub.playerId);
-          }
-        }, 2500);
-      }
-    } else {
-      room.readIndex = proximo;
-      room.readOutcome = 'reading';
-      broadcastState(room);
-      anunciarCartaAtual(room);
-    }
-  }, leuAlto ? 700 : 1300);
 }
 
 function escolherVencedor(room: Room, submissionId: string) {
@@ -588,21 +494,6 @@ io.on('connection', (socket) => {
 
     const faltam = elegiveisParaResponder(room).filter((p) => !room.submissions.some((s) => s.playerId === p.id));
     if (faltam.length === 0) fecharRespostas(room);
-  });
-
-  socket.on('reading:ask_table', ({ roomId, playerId }: { roomId: string; playerId: string }) => {
-    const room = buscarSala(roomId);
-    if (!room || room.phase !== 'JUDGMENT_READING' || room.readOutcome !== 'reading') return;
-    if (!ehHostValido(room, playerId, socket.id)) return;
-    pedirVotoDaMesa(room);
-  });
-
-  socket.on('reading:vote', ({ roomId, playerId, leuAlto }: { roomId: string; playerId: string; leuAlto: boolean }) => {
-    const room = buscarSala(roomId);
-    if (!room || room.readOutcome !== 'confirming') return;
-    room.readVotes[playerId] = leuAlto;
-    const votantesEsperados = room.players.filter((p) => !p.isHost && p.connected).length;
-    if (Object.keys(room.readVotes).length >= votantesEsperados) apurarVotoDaMesa(room);
   });
 
   socket.on('winner:pick', ({ roomId, playerId, submissionId }: { roomId: string; playerId: string; submissionId: string }, ack) => {
