@@ -128,11 +128,8 @@ const App: React.FC = () => {
   const [handSelection, setHandSelection] = useState<number[]>([]);
   const [freeTexts, setFreeTexts] = useState<string[]>(['', '']);
   const [aguardandoEnvio, setAguardandoEnvio] = useState(false);
-
-  const [readingCard, setReadingCard] = useState<{ texts: string[]; seconds: number; total: number; index: number } | null>(null);
-  const [readingSecondsLeft, setReadingSecondsLeft] = useState(0);
-  const [askingVote, setAskingVote] = useState(false);
-  const [meuVotoEnviado, setMeuVotoEnviado] = useState(false);
+  const [minhaRespostaEnviada, setMinhaRespostaEnviada] = useState(false);
+  const btnSubmitRef = useRef<HTMLDivElement | null>(null);
 
   const [pickingSubmissions, setPickingSubmissions] = useState<{ submissionId: string; texts: string[] }[] | null>(null);
   const [revealPayload, setRevealPayload] = useState<RevealPayload | null>(null);
@@ -273,24 +270,6 @@ const App: React.FC = () => {
       }, 1200);
     });
 
-    socket.on('round:reading_card', (payload: { texts: string[]; seconds: number; total: number; index: number }) => {
-      setReadingCard(payload);
-      setReadingSecondsLeft(payload.seconds);
-      setAskingVote(false);
-      setMeuVotoEnviado(false);
-      tocar('contagem_regressiva');
-    });
-
-    socket.on('round:ask_vote', () => {
-      setAskingVote(true);
-      tocar('tempo_esgotado');
-    });
-
-    socket.on('round:read_result', ({ leuAlto }: { leuAlto: boolean }) => {
-      if (!leuAlto) tocar('penalidade');
-      setAskingVote(false);
-    });
-
     socket.on('round:submission_status', (payload: { evento?: string; submissions?: { submissionId: string; texts: string[] }[] }) => {
       if (payload.evento === 'jogador_entrou') tocar('jogador_entrou');
       if (payload.submissions) setPickingSubmissions(payload.submissions);
@@ -299,9 +278,14 @@ const App: React.FC = () => {
     socket.on('round:reveal_result', (payload: RevealPayload) => {
       setRevealPayload(payload);
       setPickingSubmissions(null);
-      soundEngine.playRoundEnd();
-      tocar('rodada_vencida');
-      tocar('placar');
+      setMinhaRespostaEnviada(false);
+      const souVencedor = payload.role === 'winner';
+      soundEngine.playChampion(souVencedor);
+      if (souVencedor) {
+        tocar('vitoria_final');
+      } else {
+        tocar('rodada_vencida');
+      }
     });
 
     socket.on('game:champion_declared', (payload: ChampionPayload) => {
@@ -325,14 +309,6 @@ const App: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meuNome]);
-
-  // Contagem local da leitura em voz alta
-  useEffect(() => {
-    if (!readingCard || askingVote) return;
-    if (readingSecondsLeft <= 0) return;
-    const t = setTimeout(() => setReadingSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [readingCard, readingSecondsLeft, askingVote]);
 
   // Contagem local da oferta de coringa relampago
   useEffect(() => {
@@ -377,6 +353,7 @@ const App: React.FC = () => {
           setJoinUrl(res.joinUrl || null);
           setQrCodeDataUrl(res.qrCodeDataUrl || null);
           sessionStorage.setItem(SESSION_KEY, JSON.stringify({ roomId: res.roomId, playerId: res.hostPlayerId }));
+          soundEngine.playRoomOpen();
           tocar('sala_aberta');
         }
       }
@@ -453,21 +430,11 @@ const App: React.FC = () => {
       : { roomId: roomState.roomId, playerId: myPlayerId, handIndexes: handSelection };
     socketRef.current?.emit('answer:submit', payload, (res: { erro?: string }) => {
       setAguardandoEnvio(false);
-      if (res.erro) setErro(res.erro);
+      if (res?.erro) return setErro(res.erro);
+      setMinhaRespostaEnviada(true);
+      tocar('jogador_entrou');
     });
-  }, [roomState, myPlayerId, handSelection, freeTexts]);
-
-  const proximaCarta = useCallback(() => {
-    socketRef.current?.emit('reading:next_card', { roomId: roomState?.roomId, playerId: myPlayerId });
-  }, [roomState?.roomId, myPlayerId]);
-
-  const votar = useCallback(
-    (leuAlto: boolean) => {
-      socketRef.current?.emit('reading:vote', { roomId: roomState?.roomId, playerId: myPlayerId, leuAlto });
-      setMeuVotoEnviado(true);
-    },
-    [roomState?.roomId, myPlayerId]
-  );
+  }, [roomState, myPlayerId, handSelection, freeTexts, tocar]);
 
   const escolherVencedora = useCallback(
     (submissionId: string) => {
@@ -979,6 +946,43 @@ const App: React.FC = () => {
       );
     }
 
+    if (minhaRespostaEnviada) {
+      return (
+        <div
+          className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-4"
+          style={curTheme.bgInlineStyle}
+        >
+          {renderTopBar()}
+
+          {/* 1. PERGUNTA FIXA NO TOPO */}
+          {roomState.currentPrompt && (
+            <div className={`${curTheme.cardPromptClass} text-center shadow-lg border-3 border-black select-none`}>
+              <span className="inline-block bg-amber-400 text-black text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-1 tracking-widest border border-black shadow-[0_2px_0_#000]">
+                {t.roundQuestionFixed}
+              </span>
+              <p className="text-lg md:text-xl font-black leading-snug">
+                {roomState.currentPrompt.text}
+              </p>
+            </div>
+          )}
+
+          <div className="flex-1 flex flex-col items-center justify-center space-y-4 text-center px-4">
+            <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg max-w-sm space-y-3">
+              <span className="text-4xl inline-block animate-bounce">✅</span>
+              <h3 className="text-xl font-black uppercase text-black">
+                {lang === 'pt' ? 'RESPOSTA ENVIADA!' : 'ANSWER SUBMITTED!'}
+              </h3>
+              <p className="text-sm font-bold text-zinc-600 uppercase leading-relaxed">
+                {lang === 'pt'
+                  ? `Aguardando anfitrião ${currentHostPlayer?.name || ''}...`
+                  : `Waiting for host ${currentHostPlayer?.name || ''}...`}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const slots = roomState.currentPrompt?.slots || 1;
 
     return (
@@ -1035,9 +1039,17 @@ const App: React.FC = () => {
                   <button
                     onClick={() =>
                       setHandSelection((prev) => {
-                        if (prev.includes(idx)) return prev.filter((i) => i !== idx);
-                        if (prev.length >= slots) return prev;
-                        return [...prev, idx];
+                        const next = prev.includes(idx)
+                          ? prev.filter((i) => i !== idx)
+                          : prev.length >= slots
+                          ? prev
+                          : [...prev, idx];
+                        if (next.length === slots) {
+                          setTimeout(() => {
+                            btnSubmitRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                          }, 60);
+                        }
+                        return next;
                       })
                     }
                     className={curTheme.cardOptionClass(selecionada)}
@@ -1064,135 +1076,20 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <Botao
-          theme={theme}
-          onClick={enviarResposta}
-          disabled={
-            aguardandoEnvio ||
-            (roomState.isWildcardHolder
-              ? freeTexts.slice(0, slots).some((t) => !t.trim())
-              : handSelection.length !== slots)
-          }
-        >
-          {aguardandoEnvio ? t.sendingAnswer : t.confirmAnswerBtn}
-        </Botao>
-      </div>
-    );
-  }
-
-  // Leitura em voz alta pelo anfitrião + voto da mesa
-  if (roomState.phase === 'JUDGMENT_READING') {
-    return (
-      <div
-        className="h-screen w-screen max-w-lg mx-auto flex flex-col overflow-hidden px-6 py-6 space-y-4"
-        style={curTheme.bgInlineStyle}
-      >
-        {renderTopBar()}
-
-        {/* 1. PERGUNTA FIXA NO TOPO */}
-        {roomState.currentPrompt && (
-          <div className={`${curTheme.cardPromptClass} text-center shadow-lg border-3 border-black select-none`}>
-            <span className="inline-block bg-amber-400 text-black text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-1 tracking-widest border border-black shadow-[0_2px_0_#000]">
-              {t.roundQuestionFixed}
-            </span>
-            <p className="text-lg md:text-xl font-black leading-snug">
-              {roomState.currentPrompt.text}
-            </p>
-          </div>
-        )}
-
-        {/* 2. CABEÇALHO DO STATUS DE LEITURA */}
-        <div className="flex justify-between items-center px-1">
-          <div>
-            <p className="text-xs font-black text-white/90 uppercase">
-              {t.readingAnswerCount
-                .replace('{current}', String((readingCard?.index ?? 0) + 1))
-                .replace('{total}', String(readingCard?.total ?? '?'))}
-            </p>
-            <p className="text-[11px] font-bold text-amber-300 uppercase">
-              {souAnfitriao ? t.readQuestionAndAnswer : t.hostReadingSubtitle}
-            </p>
-          </div>
-          {!askingVote && (
-            <div
-              className={`px-3.5 py-1 rounded-2xl border-3 border-black font-black text-xl flex items-center gap-1 shadow-[0_3px_0_#000] ${
-                readingSecondsLeft <= 5 ? 'bg-red-500 text-white animate-urgent' : 'bg-amber-300 text-black'
-              }`}
-            >
-              <span>⏱️</span>
-              <span>{readingSecondsLeft}s</span>
-            </div>
-          )}
+        <div ref={btnSubmitRef} className="pt-1">
+          <Botao
+            theme={theme}
+            onClick={enviarResposta}
+            disabled={
+              aguardandoEnvio ||
+              (roomState.isWildcardHolder
+                ? freeTexts.slice(0, slots).some((t) => !t.trim())
+                : handSelection.length !== slots)
+            }
+          >
+            {aguardandoEnvio ? t.sendingAnswer : t.confirmAnswerBtn}
+          </Botao>
         </div>
-
-        {/* 3. RESPOSTA SENDO LIDA (COM A FRASE COMPLETA MONTADA) */}
-        {readingCard && !askingVote && (
-          <div className="flex-1 flex flex-col justify-center my-auto space-y-3">
-            <div className="bg-white border-4 border-black rounded-3xl p-5 shadow-[0_8px_0_#000] text-center transform rotate-0.5">
-              <span className="inline-block bg-[#003388] text-white text-[10px] font-black uppercase px-3 py-1 rounded-full mb-3 tracking-widest">
-                {lang === 'pt' ? 'RESPOSTA DO JOGADOR 🃏' : 'PLAYER ANSWER 🃏'}
-              </span>
-
-              {roomState.currentPrompt && roomState.currentPrompt.text.includes('___') ? (
-                <p
-                  className="text-xl md:text-2xl leading-relaxed font-black text-black"
-                  dangerouslySetInnerHTML={{
-                    __html: montarFrase(roomState.currentPrompt.text, readingCard.texts),
-                  }}
-                />
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-2xl leading-relaxed font-black text-black">
-                    {readingCard.texts.join('  •  ')}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 4. BOTÃO DE AVANÇO DO ANFITRIÃO */}
-        {souAnfitriao && !askingVote && (
-          <div className="pt-2 space-y-2">
-            <Botao theme={theme} variant="primary" onClick={proximaCarta}>
-              {readingCard && (readingCard.index + 1) >= (readingCard.total ?? 1)
-                ? t.finishReadingBtn
-                : `${t.nextCardBtn} (${(readingCard?.index ?? 0) + 1}/${readingCard?.total ?? 1})`}
-            </Botao>
-          </div>
-        )}
-
-        {/* 5. VOTAÇÃO DA MESA NO FINAL DA LEITURA */}
-        {!souAnfitriao && askingVote && !meuVotoEnviado && (
-          <div className="flex-1 flex flex-col justify-center items-center space-y-5">
-            <div className="bg-white border-4 border-black rounded-3xl p-6 max-w-sm text-center shadow-[0_8px_0_#000]">
-              <p className="text-2xl font-black uppercase text-black">
-                {t.askVoteTitle}
-              </p>
-              <p className="text-xs font-bold text-zinc-500 uppercase mt-1">
-                {t.askVoteSubtitle}
-              </p>
-            </div>
-            <div className="w-full max-w-sm grid grid-cols-2 gap-4">
-              <Botao theme={theme} variant="danger" onClick={() => votar(false)}>
-                {t.voteNoBtn}
-              </Botao>
-              <Botao theme={theme} variant="success" onClick={() => votar(true)}>
-                {t.voteYesBtn}
-              </Botao>
-            </div>
-          </div>
-        )}
-
-        {((souAnfitriao && askingVote) || (!souAnfitriao && meuVotoEnviado)) && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="bg-black/40 border-2 border-white/30 px-6 py-4 rounded-2xl text-center">
-              <p className="text-amber-300 font-black uppercase text-sm animate-pulse">
-                {t.voteSentMsg}
-              </p>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -1223,35 +1120,18 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <div className="text-center py-1">
-            <div className="bg-white border-4 border-black rounded-3xl p-3.5 card-shadow max-w-sm mx-auto">
-              <span className="text-2xl">👑</span>
-              <p className="text-sm font-black text-black uppercase leading-snug mt-1">
-                {t.waitingHostPick.replace('{name}', currentHostPlayer?.name || '')}
+          <div className="flex-1 flex flex-col items-center justify-center space-y-4 text-center px-4">
+            <span className="text-5xl animate-bounce">👑</span>
+            <div className="bg-white border-4 border-black rounded-3xl p-6 card-shadow-lg max-w-sm space-y-2">
+              <h3 className="text-xl font-black uppercase text-black">
+                {lang === 'pt' ? 'ANFITRIÃO VAI ESCOLHER' : 'THE HOST WILL CHOOSE'}
+              </h3>
+              <p className="text-sm font-bold text-zinc-600 uppercase leading-relaxed">
+                {lang === 'pt'
+                  ? `O anfitrião ${currentHostPlayer?.name || ''} vai ler as respostas em voz alta e escolher a melhor!`
+                  : `Host ${currentHostPlayer?.name || ''} will read the answers aloud and choose the best!`}
               </p>
             </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1 opacity-90">
-            {candidateSubmissions.map((s) => (
-              <div
-                key={s.submissionId}
-                className={`bg-white/95 border-3 border-black ${curTheme.id === 'popart' ? 'rounded-[2rem]' : 'rounded-2xl'} p-3.5 card-shadow`}
-              >
-                {roomState.currentPrompt && roomState.currentPrompt.text.includes('___') ? (
-                  <p
-                    className="text-base text-black font-black leading-snug"
-                    dangerouslySetInnerHTML={{
-                      __html: montarFrase(roomState.currentPrompt.text, s.texts),
-                    }}
-                  />
-                ) : (
-                  <p className="text-base text-black font-black leading-snug">
-                    {s.texts.join('  •  ')}
-                  </p>
-                )}
-              </div>
-            ))}
           </div>
         </div>
       );
@@ -1305,7 +1185,9 @@ const App: React.FC = () => {
                   {s.texts.join('  •  ')}
                 </p>
               )}
-              <Botao theme={theme} onClick={() => escolherVencedora(s.submissionId)}>{t.voteThisCardBtn}</Botao>
+              <Botao theme={theme} onClick={() => escolherVencedora(s.submissionId)}>
+                {lang === 'pt' ? '👑 ESCOLHER ESTA VENCEDORA' : '👑 PICK THIS WINNER'}
+              </Botao>
             </div>
           ))}
         </div>
