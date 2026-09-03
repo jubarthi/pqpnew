@@ -110,6 +110,14 @@ async function testBulkUpload() {
     console.log('ℹ️ Pergunta sorteada válida:', drawRes.texto);
   }
 
+  // 6. Restaurar estoque original oficial imediatamente
+  console.log('Restaurando baralho oficial original de fábrica...');
+  await fetch(`${BACKEND_URL}/api/admin/restaurar-estoque-original`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  console.log('✅ Baralho original oficial 100% restaurado!');
+
   socket.disconnect();
 
   console.log('====================================================');

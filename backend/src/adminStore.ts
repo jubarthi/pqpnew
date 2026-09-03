@@ -135,6 +135,19 @@ function initializeDefaultStore(): CustomStore {
   };
 }
 
+export function resetToDefaults(): CustomStore {
+  const def = initializeDefaultStore();
+  if (storeCache) {
+    // mantem os usuarios configurados
+    def.users = storeCache.users;
+    def.sounds = storeCache.sounds;
+    def.configs = storeCache.configs;
+  }
+  storeCache = def;
+  saveStore();
+  return storeCache;
+}
+
 export function loadStore(): CustomStore {
   if (storeCache) return storeCache;
   try {
@@ -143,7 +156,18 @@ export function loadStore(): CustomStore {
     }
     if (fs.existsSync(STORE_PATH)) {
       const raw = fs.readFileSync(STORE_PATH, 'utf-8');
-      storeCache = JSON.parse(raw);
+      const parsed: CustomStore = JSON.parse(raw);
+      
+      // Se continha itens de teste de script automatizado, limpa e restaura o deck original
+      const temTeste = parsed.perguntas?.some((p) => p.texto.includes('Estoque renovado pergunta #') || p.texto.includes('Pergunta de teste em lote'));
+      if (temTeste) {
+        storeCache = initializeDefaultStore();
+        if (parsed.users) storeCache.users = parsed.users;
+        saveStore();
+        return storeCache;
+      }
+
+      storeCache = parsed;
       return storeCache!;
     }
   } catch (err) {

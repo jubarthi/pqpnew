@@ -6,6 +6,7 @@ import {
   verifyAdminToken,
   PerguntaItem,
   RespostaItem,
+  resetToDefaults,
 } from '../adminStore.js';
 
 export const adminRouter = Router();
@@ -345,5 +346,16 @@ adminRouter.post('/bulk-respostas', authMiddleware, (req: Request, res: Response
     totalProcessadas: formatadas.length,
     modo,
     totalEstoque: store.respostas.filter((r) => r.lang === targetLang).length,
+  });
+});
+
+// 10. Restaurar Estoque Original do Jogo (Reset para o Baralho Padrão)
+adminRouter.post('/restaurar-estoque-original', authMiddleware, (_req: Request, res: Response) => {
+  const store = resetToDefaults();
+  res.json({
+    ok: true,
+    mensagem: 'Estoque original restaurado com sucesso!',
+    totalPerguntas: store.perguntas.length,
+    totalRespostas: store.respostas.length,
   });
 });

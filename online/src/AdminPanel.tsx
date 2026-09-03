@@ -498,6 +498,29 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
     }
   };
 
+  const restaurarEstoqueOriginal = async () => {
+    if (!token) return;
+    if (
+      !confirm(
+        'Deseja restaurar todas as perguntas e respostas originais de fábrica do jogo? Isso removerá itens de teste e reativará o baralho oficial completo.'
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch(`${apiUrl}/restaurar-estoque-original`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        mostrarStatus('✅ Baralho oficial de fábrica restaurado com sucesso!');
+        carregarDados(token);
+      }
+    } catch {
+      mostrarStatus('❌ Erro ao restaurar baralho.');
+    }
+  };
+
   // ----------------------------------------------------
   // Tela de Login Admin
   // ----------------------------------------------------
@@ -864,25 +887,34 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
                   </p>
                 </div>
 
-                {/* Seletor de Idioma para o Upload */}
-                <div className="flex items-center gap-2 bg-zinc-950 p-1.5 rounded-xl border border-zinc-800">
-                  <span className="text-[11px] font-bold text-zinc-400 px-2 uppercase">Idioma do Upload:</span>
+                <div className="flex flex-wrap items-center gap-2">
                   <button
-                    onClick={() => setUploadLang('pt')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
-                      uploadLang === 'pt' ? 'bg-amber-400 text-black' : 'text-zinc-400 hover:text-white'
-                    }`}
+                    onClick={restaurarEstoqueOriginal}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-400/50 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-1.5 shadow-sm"
                   >
-                    🇧🇷 PT
+                    <span>↺</span> Restaurar Baralho Oficial
                   </button>
-                  <button
-                    onClick={() => setUploadLang('en')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
-                      uploadLang === 'en' ? 'bg-amber-400 text-black' : 'text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    🇺🇸 EN
-                  </button>
+
+                  {/* Seletor de Idioma para o Upload */}
+                  <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+                    <span className="text-[11px] font-bold text-zinc-400 px-2 uppercase">Idioma:</span>
+                    <button
+                      onClick={() => setUploadLang('pt')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
+                        uploadLang === 'pt' ? 'bg-amber-400 text-black' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      🇧🇷 PT
+                    </button>
+                    <button
+                      onClick={() => setUploadLang('en')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
+                        uploadLang === 'en' ? 'bg-amber-400 text-black' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      🇺🇸 EN
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1295,55 +1327,57 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
       )}
 
       {/* ------------------------------------------------ */}
-      {/* MODAL DE CONFIRMAÇÃO DE UPLOAD: MANTER vs RENOVAR */}
+      {/* MODAL DE CONFIRMAÇÃO DE UPLOAD: ACRESCENTAR vs APAGAR E SUBSTITUIR */}
       {/* ------------------------------------------------ */}
       {confirmUploadModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 select-none">
           <div className="bg-zinc-900 border-3 border-zinc-700 w-full max-w-lg p-6 rounded-3xl space-y-5 shadow-2xl text-center animate-bounce-short">
             <div className="space-y-1">
               <span className="text-5xl inline-block">📦</span>
-              <h3 className="text-2xl font-black uppercase text-white">Como deseja processar o estoque?</h3>
+              <h3 className="text-2xl font-black uppercase text-white">
+                O que deseja fazer com as novas {confirmUploadModal.tipo}?
+              </h3>
               <p className="text-xs text-zinc-400 font-bold uppercase tracking-wider">
-                Você está enviando <strong className="text-amber-300">{confirmUploadModal.itens.length} {confirmUploadModal.tipo}</strong> ({confirmUploadModal.lang.toUpperCase()}).
+                Você selecionou <strong className="text-amber-300">{confirmUploadModal.itens.length} {confirmUploadModal.tipo}</strong> ({confirmUploadModal.lang.toUpperCase()}).
               </p>
             </div>
 
             <div className="space-y-3 text-left">
-              {/* Opção 1: Manter Estoque */}
+              {/* Opção 1: Acrescentar */}
               <button
                 onClick={() => executarBulkUpload('manter')}
                 disabled={uploading}
-                className="w-full bg-zinc-950 hover:bg-zinc-800 border-2 border-emerald-500/80 p-4 rounded-2xl transition-all flex items-start gap-3.5 group cursor-pointer"
+                className="w-full bg-zinc-950 hover:bg-zinc-800 border-2 border-emerald-500/80 p-4 rounded-2xl transition-all flex items-start gap-3.5 group cursor-pointer shadow-md"
               >
-                <span className="text-2xl bg-emerald-500/20 p-2.5 rounded-xl text-emerald-400">📦</span>
+                <span className="text-2xl bg-emerald-500/20 p-2.5 rounded-xl text-emerald-400">➕</span>
                 <div>
                   <h4 className="text-base font-black text-emerald-400 uppercase group-hover:text-emerald-300">
-                    1. Manter Estoque (Adicionar Novas)
+                    1. Acrescentar (Manter as que já tem)
                   </h4>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    Mantém todas as {confirmUploadModal.tipo} que já estão cadastradas e inclui estas {confirmUploadModal.itens.length} novas (evitando duplicatas exatas).
+                    Mantém todas as {confirmUploadModal.tipo} que já existem no jogo e acrescenta estas {confirmUploadModal.itens.length} novas ao estoque.
                   </p>
                 </div>
               </button>
 
-              {/* Opção 2: Renovar Estoque */}
+              {/* Opção 2: Apagar e Substituir */}
               <button
                 onClick={() => {
                   if (
                     confirm(
-                      `ATENÇÃO: Tem certeza que deseja APAGAR todas as ${confirmUploadModal.tipo} atuais e deixar somente as ${confirmUploadModal.itens.length} novas que você está enviando?`
+                      `ATENÇÃO: Tem certeza que deseja APAGAR todas as ${confirmUploadModal.tipo} que existem atualmente e deixar SOMENTE estas ${confirmUploadModal.itens.length} novas?`
                     )
                   ) {
                     executarBulkUpload('renovar');
                   }
                 }}
                 disabled={uploading}
-                className="w-full bg-zinc-950 hover:bg-zinc-800 border-2 border-rose-500/80 p-4 rounded-2xl transition-all flex items-start gap-3.5 group cursor-pointer"
+                className="w-full bg-zinc-950 hover:bg-zinc-800 border-2 border-rose-500/80 p-4 rounded-2xl transition-all flex items-start gap-3.5 group cursor-pointer shadow-md"
               >
-                <span className="text-2xl bg-rose-500/20 p-2.5 rounded-xl text-rose-400">🔄</span>
+                <span className="text-2xl bg-rose-500/20 p-2.5 rounded-xl text-rose-400">🗑️</span>
                 <div>
                   <h4 className="text-base font-black text-rose-400 uppercase group-hover:text-rose-300">
-                    2. Renovar Estoque (Substituir Tudo)
+                    2. Apagar e Substituir (Deixar só as novas)
                   </h4>
                   <p className="text-xs text-zinc-400 mt-0.5">
                     Apaga todas as {confirmUploadModal.tipo} atuais cadastradas neste idioma e deixa exclusivamente estas {confirmUploadModal.itens.length} que você está enviando agora.
