@@ -598,6 +598,11 @@ const App: React.FC = () => {
   // Barra de status superior padrão no jogo
   const renderTopBar = () => {
     if (!roomState) return null;
+    const ranking = [...roomState.players].sort((a, b) => b.score - a.score);
+    const lider = ranking[0];
+    const eu = roomState.players.find((p) => p.id === myPlayerId);
+    const meta = roomState.winningScore || 4.0;
+
     return (
       <header className="flex flex-col gap-2 pb-2 select-none">
         <div className="flex items-center justify-between gap-2 text-xs font-black">
@@ -616,6 +621,35 @@ const App: React.FC = () => {
             {roomState.players.length} {roomState.players.length === 1 ? (lang === 'pt' ? 'jogador' : 'player') : (lang === 'pt' ? 'jogadores' : 'players')}
           </div>
         </div>
+
+        {/* Mini Placar Compacto Visível o Tempo Todo no Topo */}
+        <div
+          onClick={() => setMostrarPlacarModal(true)}
+          className="bg-black/60 hover:bg-black/80 backdrop-blur-sm border-2 border-amber-400/80 hover:border-amber-300 p-2 rounded-2xl cursor-pointer flex items-center justify-between gap-2 text-white transition-all shadow-md active:scale-98"
+          title="Clique para abrir o placar completo da mesa"
+        >
+          <div className="flex items-center gap-2 text-xs font-black">
+            <span className="bg-amber-400 text-black px-2 py-0.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 shadow-sm">
+              🏆 {lang === 'pt' ? 'PLACAR' : 'SCORE'}
+            </span>
+            <div className="flex items-center gap-2 text-[11px]">
+              {lider && (
+                <span className="text-amber-300 font-bold">
+                  🥇 {lider.name}: <strong>{lider.score.toFixed(1)}p</strong>
+                </span>
+              )}
+              {eu && eu.id !== lider?.id && (
+                <span className="text-sky-300 font-bold border-l border-white/20 pl-2">
+                  Você: <strong>{eu.score.toFixed(1)}p</strong>
+                </span>
+              )}
+            </div>
+          </div>
+          <span className="text-[10px] text-zinc-300 uppercase font-black bg-white/10 px-2 py-0.5 rounded-md hover:bg-white/20">
+            Meta: {meta.toFixed(1)}p ▾
+          </span>
+        </div>
+
         {renderSettingsBar()}
         {renderPlacarModal()}
       </header>
