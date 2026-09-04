@@ -522,6 +522,72 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
   };
 
   // ----------------------------------------------------
+  // Funções de Download (Exportar Perguntas e Respostas)
+  // ----------------------------------------------------
+  const baixarPerguntas = (formato: 'xlsx' | 'txt') => {
+    const lista = perguntas.filter((p) => p.lang === uploadLang);
+    if (lista.length === 0) {
+      alert(`Nenhuma pergunta cadastrada no idioma ${uploadLang.toUpperCase()} para baixar.`);
+      return;
+    }
+
+    if (formato === 'xlsx') {
+      const data = lista.map((p, idx) => ({
+        '#': idx + 1,
+        'Pergunta': p.texto,
+        'Espacos': p.espacos,
+        'Idioma': p.lang.toUpperCase(),
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `Perguntas_${uploadLang.toUpperCase()}`);
+      XLSX.writeFile(wb, `pqp_perguntas_${uploadLang}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      mostrarStatus(`📥 ${lista.length} perguntas baixadas em Excel (.xlsx)!`);
+    } else {
+      const content = lista.map((p) => p.texto).join('\r\n');
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pqp_perguntas_${uploadLang}_${new Date().toISOString().slice(0, 10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      mostrarStatus(`📥 ${lista.length} perguntas baixadas em Bloco de Notas (.txt)!`);
+    }
+  };
+
+  const baixarRespostas = (formato: 'xlsx' | 'txt') => {
+    const lista = respostas.filter((r) => r.lang === uploadLang);
+    if (lista.length === 0) {
+      alert(`Nenhuma resposta cadastrada no idioma ${uploadLang.toUpperCase()} para baixar.`);
+      return;
+    }
+
+    if (formato === 'xlsx') {
+      const data = lista.map((r, idx) => ({
+        '#': idx + 1,
+        'Resposta': r.texto,
+        'Idioma': r.lang.toUpperCase(),
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `Respostas_${uploadLang.toUpperCase()}`);
+      XLSX.writeFile(wb, `pqp_respostas_${uploadLang}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      mostrarStatus(`📥 ${lista.length} respostas baixadas em Excel (.xlsx)!`);
+    } else {
+      const content = lista.map((r) => r.texto).join('\r\n');
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pqp_respostas_${uploadLang}_${new Date().toISOString().slice(0, 10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      mostrarStatus(`📥 ${lista.length} respostas baixadas em Bloco de Notas (.txt)!`);
+    }
+  };
+
+  // ----------------------------------------------------
   // Tela de Login Admin
   // ----------------------------------------------------
   if (!user || !token) {
@@ -930,15 +996,36 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
                 {/* 1. SEÇÃO DE PERGUNTAS */}
                 <div className="bg-zinc-950 p-5 rounded-3xl border-2 border-zinc-800 space-y-4 flex flex-col justify-between">
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-lg font-black uppercase text-amber-300 flex items-center gap-2">
-                        <span>📝</span> Enviar Perguntas
+                        <span>📝</span> Perguntas ({perguntas.filter((p) => p.lang === uploadLang).length})
                       </h3>
                       {parsedItensP.length > 0 && (
                         <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-black px-2.5 py-1 rounded-full animate-pulse">
                           {parsedItensP.length} detectadas
                         </span>
                       )}
+                    </div>
+
+                    {/* Botões de Download de Perguntas */}
+                    <div className="bg-zinc-900/80 p-2.5 rounded-2xl border border-zinc-800 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] font-black uppercase text-zinc-400">📥 Baixar Perguntas ({uploadLang.toUpperCase()}):</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => baixarPerguntas('xlsx')}
+                          className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-2.5 py-1.5 rounded-xl text-[11px] font-black transition-all flex items-center gap-1 shadow-sm"
+                          title="Baixar planilha Excel com todas as perguntas"
+                        >
+                          📊 Excel (.xlsx)
+                        </button>
+                        <button
+                          onClick={() => baixarPerguntas('txt')}
+                          className="bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 px-2.5 py-1.5 rounded-xl text-[11px] font-black transition-all flex items-center gap-1 shadow-sm"
+                          title="Baixar arquivo TXT com todas as perguntas"
+                        >
+                          📄 Bloco (.txt)
+                        </button>
+                      </div>
                     </div>
 
                     {/* Upload de Arquivo */}
@@ -1014,15 +1101,36 @@ export const AdminPanel: React.FC<{ onBackToGame: () => void; serverUrl: string 
                 {/* 2. SEÇÃO DE RESPOSTAS */}
                 <div className="bg-zinc-950 p-5 rounded-3xl border-2 border-zinc-800 space-y-4 flex flex-col justify-between">
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-lg font-black uppercase text-amber-300 flex items-center gap-2">
-                        <span>🃏</span> Enviar Respostas
+                        <span>🃏</span> Respostas ({respostas.filter((r) => r.lang === uploadLang).length})
                       </h3>
                       {parsedItensR.length > 0 && (
                         <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-black px-2.5 py-1 rounded-full animate-pulse">
                           {parsedItensR.length} detectadas
                         </span>
                       )}
+                    </div>
+
+                    {/* Botões de Download de Respostas */}
+                    <div className="bg-zinc-900/80 p-2.5 rounded-2xl border border-zinc-800 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] font-black uppercase text-zinc-400">📥 Baixar Respostas ({uploadLang.toUpperCase()}):</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => baixarRespostas('xlsx')}
+                          className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-2.5 py-1.5 rounded-xl text-[11px] font-black transition-all flex items-center gap-1 shadow-sm"
+                          title="Baixar planilha Excel com todas as respostas"
+                        >
+                          📊 Excel (.xlsx)
+                        </button>
+                        <button
+                          onClick={() => baixarRespostas('txt')}
+                          className="bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 px-2.5 py-1.5 rounded-xl text-[11px] font-black transition-all flex items-center gap-1 shadow-sm"
+                          title="Baixar arquivo TXT com todas as respostas"
+                        >
+                          📄 Bloco (.txt)
+                        </button>
+                      </div>
                     </div>
 
                     {/* Upload de Arquivo */}
